@@ -1,0 +1,28 @@
+/* Custom Toast Styling */
+.Toastify__toast {
+  border-radius: var(--radius-md);
+  font-family: var(--font-family);
+  box-shadow: var(--shadow-lg);
+}
+
+.Toastify__toast--success {
+  background: var(--color-success);
+}
+
+.Toastify__toast--error {
+  background: var(--color-error);
+}
+
+.Toastify__toast--warning {
+  background: var(--color-warning);
+}
+
+.Toastify__toast--info {
+  background: var(--color-info);
+}
+
+.Toastify__progress-bar--success {
+  background: var(--color-primary-dark);
+}
+
+
