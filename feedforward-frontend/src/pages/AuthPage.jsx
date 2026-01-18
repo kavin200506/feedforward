@@ -22,16 +22,24 @@ const AuthPage = () => {
           </div>
 
           {/* Tabs */}
-          <div className="auth-tabs">
+          <div className="auth-tabs" role="tablist" aria-label="Authentication tabs">
             <button
               className={`auth-tab ${activeTab === 'login' ? 'active' : ''}`}
               onClick={() => setActiveTab('login')}
+              role="tab"
+              aria-selected={activeTab === 'login'}
+              aria-controls="login-panel"
+              id="login-tab"
             >
               Login
             </button>
             <button
               className={`auth-tab ${activeTab === 'register' ? 'active' : ''}`}
               onClick={() => setActiveTab('register')}
+              role="tab"
+              aria-selected={activeTab === 'register'}
+              aria-controls="register-panel"
+              id="register-tab"
             >
               Register
             </button>
@@ -40,27 +48,38 @@ const AuthPage = () => {
           {/* Forms */}
           <div className="auth-form-wrapper">
             {activeTab === 'login' ? (
-              <LoginForm onSuccess={(userRole) => {
-                // Navigate based on user role
-                if (userRole === 'RESTAURANT') {
-                  navigate('/restaurant/dashboard');
-                } else if (userRole === 'NGO') {
-                  navigate('/ngo/dashboard');
-                } else {
-                  navigate('/');
-                }
-              }} />
+              <div role="tabpanel" id="login-panel" aria-labelledby="login-tab">
+                <LoginForm 
+                  onSuccess={(userRole) => {
+                    // Navigate based on user role
+                    if (userRole === 'RESTAURANT') {
+                      navigate('/restaurant/dashboard');
+                    } else if (userRole === 'NGO') {
+                      navigate('/ngo/dashboard');
+                    } else {
+                      navigate('/');
+                    }
+                  }}
+                  onSwitchToRegister={() => setActiveTab('register')}
+                />
+              </div>
             ) : (
-              <RegisterForm onSuccess={(userRole) => {
-                // Navigate based on user role
-                if (userRole === 'RESTAURANT') {
-                  navigate('/restaurant/dashboard');
-                } else if (userRole === 'NGO') {
-                  navigate('/ngo/dashboard');
-                } else {
-                  navigate('/');
-                }
-              }} initialRole={searchParams.get('role')} />
+              <div role="tabpanel" id="register-panel" aria-labelledby="register-tab">
+                <RegisterForm 
+                  onSuccess={(userRole) => {
+                    // Navigate based on user role
+                    if (userRole === 'RESTAURANT') {
+                      navigate('/restaurant/dashboard');
+                    } else if (userRole === 'NGO') {
+                      navigate('/ngo/dashboard');
+                    } else {
+                      navigate('/');
+                    }
+                  }} 
+                  initialRole={searchParams.get('role')}
+                  onSwitchToLogin={() => setActiveTab('login')}
+                />
+              </div>
             )}
           </div>
         </div>

@@ -18,8 +18,11 @@ const restaurantService = {
    */
   getMyListings: async () => {
     try {
-      const response = await api.get('/restaurants/food-listings');
-      return response;
+      const response = await api.get('/restaurant/listings');
+      // Handle response structure: response.data.data or response.data
+      return {
+        listings: response.data?.data || response.data || response || [],
+      };
     } catch (error) {
       throw error;
     }
@@ -30,8 +33,11 @@ const restaurantService = {
    */
   getPendingRequests: async () => {
     try {
-      const response = await api.post('/restaurants/requests');
-      return response;
+      const response = await api.get('/requests/restaurant/pending');
+      // Handle response structure: response.data.data or response.data
+      return {
+        pendingRequests: response.data?.data || response.data || response || [],
+      };
     } catch (error) {
       throw error;
     }

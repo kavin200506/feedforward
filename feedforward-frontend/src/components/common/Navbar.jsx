@@ -49,6 +49,9 @@ const Navbar = () => {
 
   const notificationCount = getNotificationCount();
 
+  // Safety check for isAuthenticated function
+  const checkAuth = isAuthenticated ? isAuthenticated() : false;
+
   return (
     <nav className={`navbar ${scrolled ? 'scrolled' : ''}`}>
       <div className="container">
@@ -62,7 +65,7 @@ const Navbar = () => {
 
           {/* Desktop Navigation */}
           <div className="navbar-links">
-            {!isAuthenticated() ? (
+            {!checkAuth ? (
               <>
                 <Link to="/" className={`nav-link ${isActive('/') ? 'active' : ''}`}>
                   Home
@@ -112,7 +115,7 @@ const Navbar = () => {
               </>
             ) : null}
 
-            {isAuthenticated() && (
+            {checkAuth && (
               <Link to="/impact" className={`nav-link ${isActive('/impact') ? 'active' : ''}`}>
                 Impact
               </Link>
@@ -121,7 +124,7 @@ const Navbar = () => {
 
           {/* User Actions */}
           <div className="navbar-actions">
-            {!isAuthenticated() ? (
+            {!checkAuth ? (
               <>
                 <Link to="/auth" className="btn btn-outline btn-small">
                   Login
@@ -198,7 +201,7 @@ const Navbar = () => {
         {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div className="mobile-menu slide-down">
-            {!isAuthenticated() ? (
+            {!checkAuth ? (
               <>
                 <Link to="/" className="mobile-nav-link">Home</Link>
                 <Link to="/how-it-works" className="mobile-nav-link">How It Works</Link>

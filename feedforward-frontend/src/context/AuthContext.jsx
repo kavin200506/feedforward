@@ -51,20 +51,27 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await authService.login(email, password);
       
-      if (response.success && response.data) {
-        const userData = response.data.profile || response.data;
+      if (response && response.success) {
+        // Handle different response structures
+        const authData = response.data || response;
+        const profile = authData.profile || authData;
+        
+        // Build user object from response
         const user = {
-          userId: userData.userId || response.data.userId,
-          name: userData.name || response.data.name,
-          role: userData.role || response.data.role,
-          organizationName: userData.organizationName || response.data.organizationName || userData.name,
+          userId: authData.userId || profile.userId,
+          name: authData.name || profile.name,
+          role: authData.role || profile.role,
+          organizationName: profile?.organizationName || authData.organizationName || authData.name || profile.name,
         };
+        
         setUser(user);
       }
       
       return response;
     } catch (error) {
-      throw error;
+      // Re-throw with proper error message
+      const errorMessage = error.message || 'Login failed. Please check your credentials.';
+      throw new Error(errorMessage);
     }
   };
 

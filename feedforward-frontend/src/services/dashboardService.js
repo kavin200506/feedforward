@@ -5,9 +5,30 @@ class DashboardService {
   async getRestaurantDashboard() {
     try {
       const response = await axiosInstance.get('/restaurant/dashboard');
-      return response.data.data;
+      // Response structure: response.data is ApiResponse, response.data.data is the actual data
+      return response.data?.data || response.data || response;
     } catch (error) {
       throw error.response?.data?.message || error.message || 'Failed to get dashboard';
+    }
+  }
+
+  // Get restaurant stats (alias for getRestaurantDashboard)
+  async getRestaurantStats() {
+    try {
+      const dashboard = await this.getRestaurantDashboard();
+      // Extract stats from dashboard response
+      return {
+        activeListings: dashboard?.activeListings || 0,
+        pendingRequests: dashboard?.pendingRequests || 0,
+        totalDonated: dashboard?.totalServingsDonated || 0,
+      };
+    } catch (error) {
+      // Return default stats on error
+      return {
+        activeListings: 0,
+        pendingRequests: 0,
+        totalDonated: 0,
+      };
     }
   }
 
@@ -15,9 +36,30 @@ class DashboardService {
   async getNgoDashboard() {
     try {
       const response = await axiosInstance.get('/ngo/dashboard');
-      return response.data.data;
+      // Response structure: response.data is ApiResponse, response.data.data is the actual data
+      return response.data?.data || response.data || response;
     } catch (error) {
       throw error.response?.data?.message || error.message || 'Failed to get dashboard';
+    }
+  }
+
+  // Get NGO stats (alias for getNgoDashboard)
+  async getNgoStats() {
+    try {
+      const dashboard = await this.getNgoDashboard();
+      // Extract stats from dashboard response
+      return {
+        activeRequests: dashboard?.activeRequests || 0,
+        totalReceived: dashboard?.totalServingsReceived || 0,
+        beneficiariesFed: dashboard?.beneficiariesFed || 0,
+      };
+    } catch (error) {
+      // Return default stats on error
+      return {
+        activeRequests: 0,
+        totalReceived: 0,
+        beneficiariesFed: 0,
+      };
     }
   }
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { Button, Input } from '../common';
@@ -7,9 +8,10 @@ import { FaEnvelope, FaLock, FaUser, FaPhone, FaMapMarkerAlt } from 'react-icons
 import { USER_ROLES, CUISINE_TYPES } from '../../utils/constants';
 import './RegisterForm.css';
 
-const RegisterForm = ({ onSuccess, initialRole }) => {
+const RegisterForm = ({ onSuccess, initialRole, onSwitchToLogin }) => {
   const { register } = useAuth();
   const { showSuccess, showError } = useNotification();
+  const navigate = useNavigate();
   
 
   // Determine initial role from URL parameter or default to RESTAURANT
@@ -190,7 +192,159 @@ const RegisterForm = ({ onSuccess, initialRole }) => {
       const userRole = response?.data?.role || selectedRole;
       if (onSuccess) onSuccess(userRole);
     } catch (error) {
-      showError(error.message || 'Registration failed. Please try again.');
+      // Handle 409 Conflict error (user already exists)
+      if (error.isConflict || error.statusCode === 409) {
+        const errorMessage = error.message || 'This email is already registered.';
+        const lowerMessage = errorMessage.toLowerCase();
+        
+        // Function to handle navigation to login
+        const handleGoToLogin = () => {
+          if (onSwitchToLogin) {
+            onSwitchToLogin();
+          } else {
+            navigate('/auth?tab=login');
+          }
+        };
+        
+        // Check if it's a duplicate email error
+        if (lowerMessage.includes('email') || 
+            lowerMessage.includes('user with this email')) {
+          const friendlyMessage = 'This email is already registered.';
+          setErrors({ ...errors, email: 'This email is already registered' });
+          
+          // Show error with "Go to Login" button
+          showError(
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div>{friendlyMessage}</div>
+              <button
+                onClick={handleGoToLogin}
+                style={{
+                  marginTop: '8px',
+                  padding: '8px 16px',
+                  backgroundColor: 'white',
+                  color: '#d32f2f',
+                  border: '1px solid #d32f2f',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: '500',
+                  fontSize: '14px',
+                  alignSelf: 'flex-start',
+                }}
+                onMouseOver={(e) => {
+                  e.target.style.backgroundColor = '#ffebee';
+                }}
+                onMouseOut={(e) => {
+                  e.target.style.backgroundColor = 'white';
+                }}
+              >
+                Go to Login
+              </button>
+            </div>,
+            { autoClose: 8000 }
+          );
+        }
+        // Check if it's a duplicate phone error
+        else if (lowerMessage.includes('phone') || 
+                 lowerMessage.includes('phone number')) {
+          const friendlyMessage = 'This phone number is already registered.';
+          setErrors({ ...errors, phone: 'This phone number is already registered' });
+          showError(friendlyMessage);
+        }
+        // Generic 409 error
+        else {
+          const friendlyMessage = 'This account already exists.';
+          showError(
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div>{friendlyMessage}</div>
+              <button
+                onClick={handleGoToLogin}
+                style={{
+                  marginTop: '8px',
+                  padding: '8px 16px',
+                  backgroundColor: 'white',
+                  color: '#d32f2f',
+                  border: '1px solid #d32f2f',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: '500',
+                  fontSize: '14px',
+                  alignSelf: 'flex-start',
+                }}
+                onMouseOver={(e) => {
+                  e.target.style.backgroundColor = '#ffebee';
+                }}
+                onMouseOut={(e) => {
+                  e.target.style.backgroundColor = 'white';
+                }}
+              >
+                Go to Login
+              </button>
+            </div>,
+            { autoClose: 8000 }
+          );
+        }
+      }
+      // Handle other errors
+      else {
+        let errorMessage = error.message || 'Registration failed. Please try again.';
+        
+        // Check for duplicate errors in message (fallback)
+        const lowerMessage = errorMessage.toLowerCase();
+        if (lowerMessage.includes('email') && 
+            (lowerMessage.includes('already exists') || 
+             lowerMessage.includes('duplicate') ||
+             lowerMessage.includes('already registered'))) {
+          errorMessage = 'This email is already registered.';
+          setErrors({ ...errors, email: 'This email is already registered' });
+          
+          // Show error with "Go to Login" button for duplicate email
+          const handleGoToLogin = () => {
+            if (onSwitchToLogin) {
+              onSwitchToLogin();
+            } else {
+              navigate('/auth?tab=login');
+            }
+          };
+          
+          showError(
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div>{errorMessage}</div>
+              <button
+                onClick={handleGoToLogin}
+                style={{
+                  marginTop: '8px',
+                  padding: '8px 16px',
+                  backgroundColor: 'white',
+                  color: '#d32f2f',
+                  border: '1px solid #d32f2f',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: '500',
+                  fontSize: '14px',
+                  alignSelf: 'flex-start',
+                }}
+                onMouseOver={(e) => {
+                  e.target.style.backgroundColor = '#ffebee';
+                }}
+                onMouseOut={(e) => {
+                  e.target.style.backgroundColor = 'white';
+                }}
+              >
+                Go to Login
+              </button>
+            </div>,
+            { autoClose: 8000 }
+          );
+        } else if (lowerMessage.includes('phone') && 
+                   (lowerMessage.includes('already exists') || 
+                    lowerMessage.includes('duplicate'))) {
+          errorMessage = 'This phone number is already registered. Please use a different phone number.';
+          setErrors({ ...errors, phone: 'This phone number is already registered' });
+          showError(errorMessage);
+        } else {
+          showError(errorMessage);
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -437,7 +591,18 @@ const RegisterForm = ({ onSuccess, initialRole }) => {
 
       <p className="auth-switch">
         Already have an account?{' '}
-        <button type="button" className="link-button" onClick={() => window.location.href = '/auth?tab=login'}>
+        <button 
+          type="button" 
+          className="link-button" 
+          onClick={() => {
+            if (onSwitchToLogin) {
+              onSwitchToLogin();
+            } else {
+              window.location.href = '/auth?tab=login';
+            }
+          }}
+          aria-label="Navigate to login form"
+        >
           Login here
         </button>
       </p>

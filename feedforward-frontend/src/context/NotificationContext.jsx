@@ -1,62 +1,43 @@
 import React, { createContext, useContext } from 'react';
-import { toast } from 'react-toastify';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
-const NotificationContext = createContext(null);
+const NotificationContext = createContext();
 
-export const NotificationProvider = ({ children }) => {
-  /**
-   * Show success notification
-   */
-  const showSuccess = (message) => {
+export const useNotification = () => {
+  const context = useContext(NotificationContext);
+  if (!context) {
+    throw new Error('useNotification must be used within NotificationProvider');
+  }
+  return context;
+};
+
+export function NotificationProvider({ children }) {
+  const showSuccess = (message, options = {}) => {
     toast.success(message, {
-      position: 'top-right',
-      autoClose: 5000,
-      hideProgressBar: false,
-      closeOnClick: true,
-      pauseOnHover: true,
-      draggable: true,
+      autoClose: options.autoClose || 3000,
+      ...options,
     });
   };
 
-  /**
-   * Show error notification
-   */
-  const showError = (message) => {
+  const showError = (message, options = {}) => {
     toast.error(message, {
-      position: 'top-right',
-      autoClose: 5000,
-      hideProgressBar: false,
-      closeOnClick: true,
-      pauseOnHover: true,
-      draggable: true,
+      autoClose: options.autoClose || 5000,
+      ...options,
     });
   };
 
-  /**
-   * Show warning notification
-   */
-  const showWarning = (message) => {
+  const showWarning = (message, options = {}) => {
     toast.warning(message, {
-      position: 'top-right',
-      autoClose: 5000,
-      hideProgressBar: false,
-      closeOnClick: true,
-      pauseOnHover: true,
-      draggable: true,
+      autoClose: options.autoClose || 3000,
+      ...options,
     });
   };
 
-  /**
-   * Show info notification
-   */
-  const showInfo = (message) => {
+  const showInfo = (message, options = {}) => {
     toast.info(message, {
-      position: 'top-right',
-      autoClose: 5000,
-      hideProgressBar: false,
-      closeOnClick: true,
-      pauseOnHover: true,
-      draggable: true,
+      autoClose: options.autoClose || 3000,
+      ...options,
     });
   };
 
@@ -70,19 +51,22 @@ export const NotificationProvider = ({ children }) => {
   return (
     <NotificationContext.Provider value={value}>
       {children}
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+      />
     </NotificationContext.Provider>
   );
-};
+}
 
-// Custom hook to use notification context
-export const useNotification = () => {
-  const context = useContext(NotificationContext);
-  if (!context) {
-    throw new Error('useNotification must be used within a NotificationProvider');
-  }
-  return context;
-};
-
-export default NotificationContext;
+// ✅ IMPORTANT: Export default too
+export default NotificationProvider;
 
 

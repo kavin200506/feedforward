@@ -5,7 +5,7 @@ import { Button, Input } from '../common';
 import { FaEnvelope, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa';
 import './LoginForm.css';
 
-const LoginForm = ({ onSuccess }) => {
+const LoginForm = ({ onSuccess, onSwitchToRegister }) => {
   const { login } = useAuth();
   const { showSuccess, showError } = useNotification();
 
@@ -53,22 +53,47 @@ const LoginForm = ({ onSuccess }) => {
 
     setLoading(true);
     try {
-      const response = await login({
-        email: formData.email,
-        password: formData.password,
-      });
+      const response = await login(formData.email, formData.password);
 
       showSuccess('Welcome back! Login successful.');
-      if (onSuccess) onSuccess(response.role);
+      
+      // Extract role from response - handle different response structures
+      let userRole = 'RESTAURANT'; // default
+      if (response?.data?.role) {
+        userRole = response.data.role;
+      } else if (response?.data?.data?.role) {
+        userRole = response.data.data.role;
+      } else if (response?.role) {
+        userRole = response.role;
+      }
+      
+      // Small delay to ensure state is updated before navigation
+      setTimeout(() => {
+        if (onSuccess) onSuccess(userRole);
+      }, 100);
     } catch (error) {
-      showError(error.message || 'Login failed. Please check your credentials.');
+      // Parse error message to show user-friendly messages
+      let errorMessage = error.message || 'Login failed. Please check your credentials.';
+      
+      // Check for specific error types
+      if (errorMessage.toLowerCase().includes('invalid') || 
+          errorMessage.toLowerCase().includes('bad credentials') ||
+          errorMessage.toLowerCase().includes('unauthorized')) {
+        errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+      }
+      
+      showError(errorMessage);
+      setErrors({ 
+        email: errorMessage.includes('email') ? errorMessage : '',
+        password: errorMessage.includes('password') || errorMessage.includes('credentials') ? errorMessage : ''
+      });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <form className="login-form" onSubmit={handleSubmit}>
+    <form className="login-form" onSubmit={handleSubmit} noValidate>
       <Input
         label="Email Address"
         type="email"
@@ -80,6 +105,7 @@ const LoginForm = ({ onSuccess }) => {
         icon={<FaEnvelope />}
         required
         autoComplete="email"
+        disabled={loading}
       />
 
       <div className="password-input-wrapper">
@@ -94,14 +120,18 @@ const LoginForm = ({ onSuccess }) => {
           icon={<FaLock />}
           required
           autoComplete="current-password"
+          disabled={loading}
         />
         <button
           type="button"
           className="password-toggle"
           onClick={() => setShowPassword(!showPassword)}
           aria-label={showPassword ? 'Hide password' : 'Show password'}
+          aria-pressed={showPassword}
+          disabled={loading}
+          tabIndex={0}
         >
-          {showPassword ? <FaEyeSlash size={20} /> : <FaEye size={20} />}
+          {showPassword ? <FaEyeSlash size={20} aria-hidden="true" /> : <FaEye size={20} aria-hidden="true" />}
         </button>
       </div>
 
@@ -109,23 +139,43 @@ const LoginForm = ({ onSuccess }) => {
         <label className="remember-me">
           <input
             type="checkbox"
+            id="remember-me"
+            name="rememberMe"
             checked={rememberMe}
             onChange={(e) => setRememberMe(e.target.checked)}
+            disabled={loading}
+            aria-label="Remember me on this device"
           />
           <span>Remember me</span>
         </label>
-        <a href="/forgot-password" className="forgot-password">
+        <a href="/forgot-password" className="forgot-password" aria-label="Reset your password">
           Forgot Password?
         </a>
       </div>
 
-      <Button type="submit" variant="primary" size="large" fullWidth loading={loading}>
-        Login
+      <Button 
+        type="submit" 
+        variant="primary" 
+        size="large" 
+        fullWidth 
+        loading={loading}
+        aria-label={loading ? 'Signing in, please wait' : 'Sign in to your account'}
+      >
+        {loading ? 'Signing in...' : 'Login'}
       </Button>
 
       <p className="auth-switch">
         Don't have an account?{' '}
-        <button type="button" className="link-button">
+        <button 
+          type="button" 
+          className="link-button"
+          onClick={() => {
+            if (onSwitchToRegister) {
+              onSwitchToRegister();
+            }
+          }}
+          aria-label="Navigate to registration form"
+        >
           Register now
         </button>
       </p>

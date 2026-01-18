@@ -6,8 +6,20 @@ const ngoService = {
    */
   searchFood: async (filters = {}) => {
     try {
-      const response = await api.get('/ngos/search-food', { params: filters });
-      return response;
+      // Use POST for search with body, or GET /available for default
+      if (Object.keys(filters).length === 0 || filters.limit) {
+        // Use GET /available for simple queries
+        const response = await api.get('/ngo/available');
+        return {
+          foodListings: response.data?.data || response.data || response || [],
+        };
+      } else {
+        // Use POST /search for complex queries
+        const response = await api.post('/ngo/search', filters);
+        return {
+          foodListings: response.data?.data || response.data || response || [],
+        };
+      }
     } catch (error) {
       throw error;
     }
@@ -30,8 +42,14 @@ const ngoService = {
    */
   getMyRequests: async () => {
     try {
-      const response = await api.get('/ngos/my-requests');
-      return response;
+      const response = await api.get('/requests/ngo/my-requests');
+      // Handle response structure: response.data.data or response.data
+      const requests = response.data?.data || response.data || response || [];
+      // Separate active and completed requests
+      return {
+        activeRequests: requests.filter(r => r.status !== 'COMPLETED' && r.status !== 'CANCELLED') || [],
+        completedRequests: requests.filter(r => r.status === 'COMPLETED') || [],
+      };
     } catch (error) {
       throw error;
     }

@@ -1,8 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import { NotificationProvider } from './context/NotificationContext';
-import { Toast, Navbar, Footer, ErrorBoundary } from './components/common';
+import { Footer } from './components/common';
+import Navbar from './components/common/Navbar';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import { USER_ROLES } from './utils/constants';
 
@@ -25,34 +24,18 @@ import NgoRequests from './pages/ngo/NgoRequests';
 // Shared Pages (to be created in next steps)
 import ImpactPage from './pages/ImpactPage';
 
-import './App.css';
+// Route Components
+import DefaultRoute from './components/DefaultRoute';
 
-// Component to handle default route based on auth
-const DefaultRoute = () => {
-  const { user, isAuthenticated } = useAuth();
-  
-  if (isAuthenticated()) {
-    if (user?.role === USER_ROLES.RESTAURANT) {
-      return <Navigate to="/restaurant/dashboard" replace />;
-    } else if (user?.role === USER_ROLES.NGO) {
-      return <Navigate to="/ngo/dashboard" replace />;
-    }
-  }
-  
-  return <LandingPage />;
-};
+import './App.css';
 
 function App() {
   return (
-    <ErrorBoundary>
-      <Router>
-        <AuthProvider>
-          <NotificationProvider>
-            <Toast />
-            <div className="app-wrapper">
-              <Navbar />
-              <main className="main-content">
-                <Routes>
+    <Router>
+      <div className="app-wrapper">
+        <Navbar />
+        <main className="main-content">
+          <Routes>
                 {/* Public Routes */}
                 <Route path="/" element={<DefaultRoute />} />
                 <Route path="/auth" element={<AuthPage />} />
@@ -119,16 +102,13 @@ function App() {
                 />
 
                 {/* 404 Page */}
-                <Route path="/404" element={<NotFoundPage />} />
-                <Route path="*" element={<Navigate to="/404" replace />} />
-                </Routes>
-              </main>
-              <Footer />
-            </div>
-          </NotificationProvider>
-        </AuthProvider>
-      </Router>
-    </ErrorBoundary>
+            <Route path="/404" element={<NotFoundPage />} />
+            <Route path="*" element={<Navigate to="/404" replace />} />
+          </Routes>
+        </main>
+        <Footer />
+      </div>
+    </Router>
   );
 }
 
