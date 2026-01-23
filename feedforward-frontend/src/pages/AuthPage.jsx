@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import LoginForm from '../components/auth/LoginForm';
 import RegisterForm from '../components/auth/RegisterForm';
+import { USER_ROLES } from '../utils/constants';
 import './AuthPage.css';
 
 const AuthPage = () => {
@@ -51,10 +52,13 @@ const AuthPage = () => {
               <div role="tabpanel" id="login-panel" aria-labelledby="login-tab">
                 <LoginForm 
                   onSuccess={(userRole) => {
+                    // Normalize role to uppercase for comparison
+                    const normalizedRole = userRole?.toUpperCase();
+                    
                     // Navigate based on user role
-                    if (userRole === 'RESTAURANT') {
+                    if (normalizedRole === USER_ROLES.RESTAURANT) {
                       navigate('/restaurant/dashboard');
-                    } else if (userRole === 'NGO') {
+                    } else if (normalizedRole === USER_ROLES.NGO) {
                       navigate('/ngo/dashboard');
                     } else {
                       navigate('/');
@@ -67,10 +71,13 @@ const AuthPage = () => {
               <div role="tabpanel" id="register-panel" aria-labelledby="register-tab">
                 <RegisterForm 
                   onSuccess={(userRole) => {
+                    // Normalize role to uppercase for comparison
+                    const normalizedRole = userRole?.toUpperCase();
+                    
                     // Navigate based on user role
-                    if (userRole === 'RESTAURANT') {
+                    if (normalizedRole === USER_ROLES.RESTAURANT) {
                       navigate('/restaurant/dashboard');
-                    } else if (userRole === 'NGO') {
+                    } else if (normalizedRole === USER_ROLES.NGO) {
                       navigate('/ngo/dashboard');
                     } else {
                       navigate('/');
