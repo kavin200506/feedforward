@@ -5,6 +5,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import { formatTimeRemaining, calculateUrgency } from '../../utils/helpers';
 import { FiMapPin, FiPhone, FiClock, FiPackage } from 'react-icons/fi';
+import { FOOD_CATEGORIES } from '../../utils/constants';
 import './RequestFoodModal.css';
 
 const RequestFoodModal = ({ isOpen, onClose, food, onSuccess }) => {
@@ -85,15 +86,9 @@ const RequestFoodModal = ({ isOpen, onClose, food, onSuccess }) => {
   });
 
   const getCategoryEmoji = (category) => {
-    const emojiMap = {
-      'Cooked Rice': '🍚',
-      'Vegetables': '🥗',
-      'Bread': '🍞',
-      'Proteins': '🍗',
-      'Sweets': '🍰',
-      'Other': '📦',
-    };
-    return emojiMap[category] || '🍽️';
+    if (food?.categoryEmoji) return food.categoryEmoji;
+    const fromConstants = FOOD_CATEGORIES.find((c) => c.value === category);
+    return fromConstants?.emoji || '🍽️';
   };
 
   return (
