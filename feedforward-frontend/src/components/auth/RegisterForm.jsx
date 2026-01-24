@@ -188,9 +188,37 @@ const RegisterForm = ({ onSuccess, initialRole, onSwitchToLogin }) => {
 
       const response = await register(payload);
       showSuccess('Registered successfully!');
-      // Pass the role from response to ensure it matches backend
-      const userRole = response?.data?.role || selectedRole;
-      if (onSuccess) onSuccess(userRole);
+      
+      // Extract role from response
+      // Response structure from authService: { success: true, data: AuthResponse { role: "RESTAURANT" | "NGO" } }
+      // AuthResponse is at response.data
+      let userRole = null;
+      if (response?.data?.role) {
+        userRole = response.data.role;
+      } else if (response?.data?.data?.role) {
+        // Fallback: check if nested deeper
+        userRole = response.data.data.role;
+      } else {
+        // Use selected role as fallback
+        userRole = selectedRole;
+      }
+      
+      // Ensure role is uppercase to match USER_ROLES constants
+      userRole = userRole?.toUpperCase() || selectedRole;
+      
+      // Call onSuccess callback with the role
+      if (onSuccess) {
+        onSuccess(userRole);
+      } else {
+        // Fallback navigation if onSuccess is not provided
+        if (userRole === USER_ROLES.RESTAURANT) {
+          navigate('/restaurant/dashboard');
+        } else if (userRole === USER_ROLES.NGO) {
+          navigate('/ngo/dashboard');
+        } else {
+          navigate('/');
+        }
+      }
     } catch (error) {
       // Handle 409 Conflict error (user already exists)
       if (error.isConflict || error.statusCode === 409) {
