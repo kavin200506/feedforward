@@ -1,5 +1,17 @@
 package com.feedforward.service;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.feedforward.dto.request.FoodListingRequest;
 import com.feedforward.dto.request.SearchFoodRequest;
 import com.feedforward.dto.response.FoodListingResponse;
@@ -17,18 +29,8 @@ import com.feedforward.repository.FoodListingRepository;
 import com.feedforward.repository.NgoRepository;
 import com.feedforward.repository.RestaurantRepository;
 import com.feedforward.util.SecurityUtil;
-import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -243,6 +245,24 @@ public class FoodListingService {
         foodListingRepository.save(listing);
 
         logger.info("Listing {} marked as expired", listingId);
+    }
+
+    /**
+     * Delete ALL active listings for the current restaurant (soft delete by marking as expired)
+     * Active = AVAILABLE and not expired yet.
+     *
+     * @return number of listings expired
+     */
+    @Transactional
+    public int deleteAllActiveListings() {
+        Long userId = SecurityUtil.getCurrentUserId();
+
+        Restaurant restaurant = restaurantRepository.findByUser_UserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Restaurant not found"));
+
+        int updated = foodListingRepository.expireAllActiveListingsByRestaurant(restaurant.getRestaurantId());
+        logger.info("Expired {} active listings for restaurant {}", updated, restaurant.getRestaurantId());
+        return updated;
     }
 
     // Helper: Validate listing dates

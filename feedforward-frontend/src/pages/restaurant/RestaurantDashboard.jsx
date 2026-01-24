@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
-import { restaurantService, dashboardService } from '../../services';
+import { restaurantService, dashboardService, foodListingService } from '../../services';
 import { Button, Card, Loader } from '../../components/common';
 import AddFoodModal from '../../components/restaurant/AddFoodModal';
 import FoodListingsTable from '../../components/restaurant/FoodListingsTable';
@@ -12,7 +12,7 @@ import './RestaurantDashboard.css';
 
 const RestaurantDashboard = () => {
   const { user } = useAuth();
-  const { showError } = useNotification();
+  const { showError, showSuccess } = useNotification();
   const navigate = useNavigate();
 
   const [stats, setStats] = useState({
@@ -52,6 +52,19 @@ const RestaurantDashboard = () => {
   const handleFoodAdded = () => {
     setShowAddModal(false);
     fetchDashboardData();
+  };
+
+  const handleDeleteAllActive = async () => {
+    const confirmed = window.confirm('Delete ALL active food listings? This will remove them from your Active Listings view.');
+    if (!confirmed) return;
+
+    try {
+      await foodListingService.deleteAllActiveListings();
+      showSuccess('All active listings deleted.');
+      fetchDashboardData();
+    } catch (e) {
+      showError(e?.message || 'Failed to delete active listings');
+    }
   };
 
   if (loading) {
@@ -132,9 +145,14 @@ const RestaurantDashboard = () => {
           <div className="dashboard-section">
             <div className="section-header">
               <h2 className="section-title">Active Food Listings</h2>
-              <Button variant="link" size="small" onClick={() => navigate('/restaurant/listings')}>
-                View All
-              </Button>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <Button variant="outline" size="small" onClick={handleDeleteAllActive}>
+                  Delete All
+                </Button>
+                <Button variant="link" size="small" onClick={() => navigate('/restaurant/listings')}>
+                  View All
+                </Button>
+              </div>
             </div>
             {listings.length > 0 ? (
               <FoodListingsTable 
