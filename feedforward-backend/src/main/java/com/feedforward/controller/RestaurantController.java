@@ -128,6 +128,18 @@ public class RestaurantController {
 
         return ResponseEntity.ok(ApiResponse.success("Listing deleted successfully", null));
     }
+
+    /**
+     * Delete ALL active listings (soft delete) for current restaurant
+     * DELETE /api/restaurant/listings/active
+     */
+    @DeleteMapping("/listings/active")
+    public ResponseEntity<ApiResponse<String>> deleteAllActiveListings() {
+        logger.info("Delete ALL active listings");
+
+        int deletedCount = foodListingService.deleteAllActiveListings();
+        return ResponseEntity.ok(ApiResponse.success("Deleted " + deletedCount + " active listings", null));
+    }
 }
 
 

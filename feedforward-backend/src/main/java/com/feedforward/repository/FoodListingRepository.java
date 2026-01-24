@@ -110,6 +110,14 @@ public interface FoodListingRepository extends JpaRepository<FoodListing, Long> 
             "WHERE fl.status = 'AVAILABLE' AND fl.expiryTime <= CURRENT_TIMESTAMP")
     int markExpiredListings();
 
+    // Bulk delete (soft delete) active listings for a restaurant
+    @Modifying
+    @Transactional
+    @Query("UPDATE FoodListing fl SET fl.status = 'EXPIRED' " +
+            "WHERE fl.restaurant.restaurantId = :restaurantId " +
+            "AND fl.status = 'AVAILABLE' AND fl.expiryTime > CURRENT_TIMESTAMP")
+    int expireAllActiveListingsByRestaurant(@Param("restaurantId") Long restaurantId);
+
     // Find urgent listings (expiring in next hour)
     @Query("SELECT fl FROM FoodListing fl WHERE fl.status = 'AVAILABLE' " +
             "AND fl.expiryTime > CURRENT_TIMESTAMP " +

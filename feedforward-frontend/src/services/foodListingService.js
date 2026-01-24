@@ -31,6 +31,16 @@ class FoodListingService {
     }
   }
 
+  // Delete ALL active listings (Restaurant) - soft delete
+  async deleteAllActiveListings() {
+    try {
+      const response = await axiosInstance.delete('/restaurant/listings/active');
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || error.message || 'Failed to delete active listings';
+    }
+  }
+
   // Search available food (NGO)
   async searchAvailableFood(searchParams) {
     try {
