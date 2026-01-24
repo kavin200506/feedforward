@@ -4,6 +4,7 @@ import com.feedforward.dto.request.SearchFoodRequest;
 import com.feedforward.dto.response.ApiResponse;
 import com.feedforward.dto.response.FoodListingResponse;
 import com.feedforward.dto.response.NgoDashboardResponse;
+import com.feedforward.dto.response.SearchFoodWithNearbyResponse;
 import com.feedforward.service.DashboardService;
 import com.feedforward.service.FoodListingService;
 import jakarta.validation.Valid;
@@ -70,6 +71,21 @@ public class NgoController {
         List<FoodListingResponse> listings = foodListingService.searchAvailableFood(defaultSearch);
 
         return ResponseEntity.ok(ApiResponse.success(listings));
+    }
+
+    /**
+     * Search available food with nearby unregistered restaurants
+     * POST /api/ngo/search-with-nearby
+     */
+    @PostMapping("/search-with-nearby")
+    public ResponseEntity<ApiResponse<SearchFoodWithNearbyResponse>> searchFoodWithNearby(
+            @Valid @RequestBody SearchFoodRequest request
+    ) {
+        logger.info("Search food with nearby restaurants request with distance: {} km", request.getDistance());
+
+        SearchFoodWithNearbyResponse results = foodListingService.searchFoodWithNearby(request);
+
+        return ResponseEntity.ok(ApiResponse.success(results));
     }
 
     /**
