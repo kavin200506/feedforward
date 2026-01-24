@@ -26,6 +26,24 @@ const ngoService = {
   },
 
   /**
+   * Search available food with nearby unregistered restaurants
+   */
+  searchFoodWithNearby: async (filters = {}) => {
+    try {
+      const response = await api.post('/ngo/search-with-nearby', {
+        distance: filters.distance || 10,
+        category: filters.category ? (Array.isArray(filters.category) ? filters.category[0] : filters.category) : null,
+        urgencyLevel: filters.urgency ? (Array.isArray(filters.urgency) ? filters.urgency[0] : filters.urgency) : null,
+        searchTerm: filters.search || null,
+        sortBy: filters.sortBy || 'expiry',
+      });
+      return response.data?.data || response.data || {};
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
    * Request food from restaurant
    */
   requestFood: async (requestData) => {

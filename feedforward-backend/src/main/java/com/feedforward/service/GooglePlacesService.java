@@ -1,6 +1,7 @@
 package com.feedforward.service;
 
 import com.feedforward.dto.response.NearbyNgoPlaceResponse;
+import com.feedforward.dto.response.NearbyRestaurantResponse;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -123,6 +124,131 @@ public class GooglePlacesService {
                 logger.warn("Google Places lookup failed for keyword {}: {}", keyword, ex.getMessage());
             } catch (Exception ex) {
                 logger.warn("Unexpected error in Google Places lookup for keyword {}: {}", keyword, ex.getMessage());
+            }
+        }
+
+        // Sort by distance, closest first
+        return byPlaceId.values().stream()
+                .sorted(Comparator.comparingDouble(p -> p.getDistanceKm() != null ? p.getDistanceKm() : Double.MAX_VALUE))
+                .toList();
+    }
+
+    /**
+     * Search Google Places around an NGO location for nearby restaurants.
+     * Returns a merged, de-duplicated list by place_id.
+     *
+     * Note: This is optional and returns empty list if apiKey is not configured.
+     */
+    @SuppressWarnings("unchecked")
+    public List<NearbyRestaurantResponse> findNearbyRestaurants(double ngoLat, double ngoLng, double radiusKm) {
+        if (apiKey == null || apiKey.isBlank()) {
+            logger.info("Google Places API key not configured; skipping nearby restaurant lookup");
+            return Collections.emptyList();
+        }
+
+        int radiusMeters = (int) (radiusKm * 1000);
+        // Keywords for restaurant search
+        List<String> keywords = List.of("restaurant", "food", "hotel", "catering", "dining");
+
+        Map<String, NearbyRestaurantResponse> byPlaceId = new LinkedHashMap<>();
+
+        for (String keyword : keywords) {
+            try {
+                String url = UriComponentsBuilder
+                        .fromHttpUrl(nearbySearchUrl)
+                        .queryParam("location", ngoLat + "," + ngoLng)
+                        .queryParam("radius", radiusMeters)
+                        .queryParam("type", "restaurant")
+                        .queryParam("keyword", keyword)
+                        .queryParam("key", apiKey)
+                        .toUriString();
+
+                Map<String, Object> response = restTemplate.getForObject(url, Map.class);
+                if (response == null) continue;
+
+                Object statusObj = response.get("status");
+                String status = statusObj != null ? statusObj.toString() : "UNKNOWN";
+
+                if (!"OK".equals(status) && !"ZERO_RESULTS".equals(status)) {
+                    logger.warn("Google Places nearbysearch status={} keyword={} errorMessage={}",
+                            status, keyword, response.getOrDefault("error_message", ""));
+                    continue;
+                }
+
+                Object resultsObj = response.get("results");
+                if (!(resultsObj instanceof List<?> results)) continue;
+
+                for (Object itemObj : results) {
+                    if (!(itemObj instanceof Map<?, ?> item)) continue;
+
+                    String placeId = Objects.toString(item.get("place_id"), null);
+                    if (placeId == null || placeId.isBlank()) continue;
+
+                    String name = Objects.toString(item.get("name"), "");
+                    Object vicinityObj = item.get("vicinity");
+                    if (vicinityObj == null) {
+                        vicinityObj = item.get("formatted_address");
+                    }
+                    String address = Objects.toString(vicinityObj, "");
+
+                    Double lat = null;
+                    Double lng = null;
+                    Object geometryObj = item.get("geometry");
+                    if (geometryObj instanceof Map<?, ?> geometry) {
+                        Object locationObj = geometry.get("location");
+                        if (locationObj instanceof Map<?, ?> location) {
+                            Object latObj = location.get("lat");
+                            Object lngObj = location.get("lng");
+                            if (latObj instanceof Number n1) lat = n1.doubleValue();
+                            if (lngObj instanceof Number n2) lng = n2.doubleValue();
+                        }
+                    }
+
+                    if (lat == null || lng == null) continue;
+
+                    double distanceKm = matchingAlgorithmService.calculateDistance(ngoLat, ngoLng, lat, lng);
+
+                    // Get rating if available
+                    Double rating = null;
+                    Object ratingObj = item.get("rating");
+                    if (ratingObj instanceof Number r) {
+                        rating = r.doubleValue();
+                    }
+
+                    // Get types (cuisine types)
+                    List<String> types = new ArrayList<>();
+                    Object typesObj = item.get("types");
+                    if (typesObj instanceof List<?> typesList) {
+                        for (Object typeObj : typesList) {
+                            if (typeObj instanceof String type) {
+                                // Filter out generic types like "establishment", "point_of_interest"
+                                if (!type.equals("establishment") && !type.equals("point_of_interest") && !type.equals("food")) {
+                                    types.add(type);
+                                }
+                            }
+                        }
+                    }
+
+                    // Provide a stable Maps URL
+                    String mapsUrl = "https://www.google.com/maps/search/?api=1&query_place_id=" + placeId;
+
+                    byPlaceId.putIfAbsent(placeId, NearbyRestaurantResponse.builder()
+                            .placeId(placeId)
+                            .name(name)
+                            .address(address)
+                            .latitude(lat)
+                            .longitude(lng)
+                            .distanceKm(Math.round(distanceKm * 100.0) / 100.0)
+                            .rating(rating)
+                            .types(types)
+                            .mapsUrl(mapsUrl)
+                            .isRegistered(false)
+                            .build());
+                }
+            } catch (RestClientException ex) {
+                logger.warn("Google Places restaurant lookup failed for keyword {}: {}", keyword, ex.getMessage());
+            } catch (Exception ex) {
+                logger.warn("Unexpected error in Google Places restaurant lookup for keyword {}: {}", keyword, ex.getMessage());
             }
         }
 

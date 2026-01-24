@@ -202,4 +202,119 @@
   }
 }
 
+/* Results Sections */
+.results-section {
+  margin-bottom: var(--spacing-xxl);
+}
+
+.results-section .section-title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  margin-bottom: var(--spacing-md);
+}
+
+.section-subtitle {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-base);
+  margin-bottom: var(--spacing-lg);
+}
+
+.nearby-section {
+  margin-top: var(--spacing-xxl);
+  padding-top: var(--spacing-xxl);
+  border-top: 2px solid var(--color-border);
+}
+
+/* Nearby Restaurant Cards */
+.nearby-restaurant-card {
+  background: var(--color-background);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 2px solid #f97316;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.nearby-restaurant-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.restaurant-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.restaurant-card-header h3 {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-primary);
+  margin: 0;
+  flex: 1;
+}
+
+.distance-badge {
+  background: var(--color-primary);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: var(--font-weight-semibold);
+}
+
+.distance-badge.orange {
+  background: #f97316;
+}
+
+.restaurant-card-body {
+  flex: 1;
+  margin-bottom: var(--spacing-md);
+}
+
+.restaurant-card-body p {
+  margin: 0.5rem 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.restaurant-address {
+  font-weight: var(--font-weight-medium);
+}
+
+.restaurant-rating {
+  color: #f59e0b;
+}
+
+.restaurant-types {
+  color: var(--color-text-secondary);
+}
+
+.not-registered-badge {
+  display: inline-block;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: var(--font-weight-semibold);
+  margin-top: var(--spacing-sm);
+}
+
+.btn-invite {
+  width: 100%;
+  padding: var(--spacing-md);
+  background: #d1d5db;
+  color: #6b7280;
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-semibold);
+  cursor: not-allowed;
+  font-size: var(--font-size-sm);
+  margin-top: var(--spacing-md);
+}
+
 

@@ -14,6 +14,7 @@ const BrowseFoodPage = () => {
   const { showError } = useNotification();
 
   const [foodListings, setFoodListings] = useState([]);
+  const [nearbyRestaurants, setNearbyRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     distance: 10,
@@ -38,16 +39,33 @@ const BrowseFoodPage = () => {
     try {
       const params = {
         distance: filters.distance,
-        category: filters.category.join(','),
+        category: filters.category.length > 0 ? filters.category[0] : null,
         dietaryInfo: filters.dietary.join(','),
         sortBy: filters.sortBy,
         search: debouncedSearch,
       };
 
-      const response = await ngoService.searchFood(params);
-      setFoodListings(response.foodListings || []);
+      // Use new endpoint that includes nearby restaurants
+      const response = await ngoService.searchFoodWithNearby(params);
+      setFoodListings(response.registeredResults || []);
+      setNearbyRestaurants(response.nearbyRestaurants || []);
     } catch (error) {
       showError('Failed to load food listings');
+      // Fallback to old endpoint if new one fails
+      try {
+        const fallbackParams = {
+          distance: filters.distance,
+          category: filters.category.join(','),
+          dietaryInfo: filters.dietary.join(','),
+          sortBy: filters.sortBy,
+          search: debouncedSearch,
+        };
+        const fallbackResponse = await ngoService.searchFood(fallbackParams);
+        setFoodListings(fallbackResponse.foodListings || []);
+        setNearbyRestaurants([]);
+      } catch (fallbackError) {
+        showError('Failed to load food listings');
+      }
     } finally {
       setLoading(false);
     }
@@ -123,39 +141,92 @@ const BrowseFoodPage = () => {
               </div>
             </div>
 
-            {/* Food Grid */}
+            {/* Registered Food Listings Section */}
             {loading ? (
               <div className="loading-container">
                 <Loader text="Loading food listings..." />
               </div>
-            ) : foodListings.length > 0 ? (
-              <div className="food-grid">
-                {foodListings.map((food) => (
-                  <FoodCard
-                    key={food.listingId}
-                    food={food}
-                    onRequest={handleRequestFood}
-                  />
-                ))}
-              </div>
             ) : (
-              <div className="empty-state-card">
-                <div className="empty-icon">🔍</div>
-                <h3>No food found matching your criteria</h3>
-                <p>Try adjusting your filters or expanding the distance range</p>
-                <Button
-                  variant="primary"
-                  onClick={() => setFilters({
-                    distance: 25,
-                    category: [],
-                    dietary: [],
-                    urgency: [],
-                    sortBy: 'expiry',
-                  })}
-                >
-                  Reset All Filters
-                </Button>
-              </div>
+              <>
+                {foodListings.length > 0 && (
+                  <div className="results-section">
+                    <h2 className="section-title">
+                      ✅ Food Available Now ({foodListings.length})
+                    </h2>
+                    <div className="food-grid">
+                      {foodListings.map((food) => (
+                        <FoodCard
+                          key={food.listingId}
+                          food={food}
+                          onRequest={handleRequestFood}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Nearby Unregistered Restaurants Section */}
+                {nearbyRestaurants.length > 0 && (
+                  <div className="results-section nearby-section">
+                    <h2 className="section-title">
+                      📍 Restaurants Near You ({nearbyRestaurants.length})
+                    </h2>
+                    <p className="section-subtitle">
+                      These restaurants are nearby but not yet on FeedForward
+                    </p>
+                    <div className="food-grid">
+                      {nearbyRestaurants.map((restaurant, index) => (
+                        <div key={restaurant.placeId || index} className="nearby-restaurant-card">
+                          <div className="restaurant-card-header">
+                            <h3>🍽️ {restaurant.name}</h3>
+                            <span className="distance-badge orange">
+                              {restaurant.distanceKm?.toFixed(1)} km
+                            </span>
+                          </div>
+                          <div className="restaurant-card-body">
+                            <p className="restaurant-address">📍 {restaurant.address}</p>
+                            {restaurant.rating && (
+                              <p className="restaurant-rating">⭐ {restaurant.rating} (Google)</p>
+                            )}
+                            {restaurant.types && restaurant.types.length > 0 && (
+                              <p className="restaurant-types">
+                                🍽️ {restaurant.types.slice(0, 2).join(', ')}
+                              </p>
+                            )}
+                            <div className="not-registered-badge">
+                              Not on FeedForward
+                            </div>
+                          </div>
+                          <button className="btn-invite" disabled>
+                            🚀 Invite Feature Coming Soon
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {!loading && foodListings.length === 0 && nearbyRestaurants.length === 0 && (
+                  <div className="empty-state-card">
+                    <div className="empty-icon">🔍</div>
+                    <h3>No food found matching your criteria</h3>
+                    <p>Try adjusting your filters or expanding the distance range</p>
+                    <Button
+                      variant="primary"
+                      onClick={() => setFilters({
+                        distance: 25,
+                        category: [],
+                        dietary: [],
+                        urgency: [],
+                        sortBy: 'expiry',
+                      })}
+                    >
+                      Reset All Filters
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </main>
         </div>

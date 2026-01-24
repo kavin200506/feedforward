@@ -16,6 +16,8 @@ import com.feedforward.dto.request.FoodListingRequest;
 import com.feedforward.dto.request.SearchFoodRequest;
 import com.feedforward.dto.response.FoodListingResponse;
 import com.feedforward.dto.response.NearbyNgoPlaceResponse;
+import com.feedforward.dto.response.NearbyRestaurantResponse;
+import com.feedforward.dto.response.SearchFoodWithNearbyResponse;
 import com.feedforward.dto.response.SuggestedNgoResponse;
 import com.feedforward.entity.FoodListing;
 import com.feedforward.entity.Ngo;
@@ -179,6 +181,77 @@ public class FoodListingService {
                     return buildFoodListingResponse(listing, distance, null, matchScore);
                 })
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Search available food listings with nearby unregistered restaurants (NGO only)
+     */
+    @Transactional(readOnly = true)
+    public SearchFoodWithNearbyResponse searchFoodWithNearby(SearchFoodRequest request) {
+        Long userId = SecurityUtil.getCurrentUserId();
+
+        // Get NGO location
+        Ngo ngo = ngoRepository.findByUser_UserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("NGO not found"));
+
+        // PART 1: Search registered restaurants with available food
+        List<FoodListingResponse> registeredResults = searchAvailableFood(request);
+
+        // PART 2: Search nearby restaurants from Google Maps
+        List<NearbyRestaurantResponse> nearbyRestaurants = googlePlacesService.findNearbyRestaurants(
+                ngo.getLatitude().doubleValue(),
+                ngo.getLongitude().doubleValue(),
+                request.getDistance()
+        );
+
+        // PART 3: Remove duplicates (restaurants already registered)
+        List<Restaurant> allRegisteredRestaurants = restaurantRepository.findAll();
+        nearbyRestaurants = removeDuplicateRestaurants(nearbyRestaurants, allRegisteredRestaurants);
+
+        // Build response
+        return SearchFoodWithNearbyResponse.builder()
+                .registeredResults(registeredResults)
+                .nearbyRestaurants(nearbyRestaurants)
+                .totalRegistered(registeredResults.size())
+                .totalNearby(nearbyRestaurants.size())
+                .build();
+    }
+
+    /**
+     * Remove restaurants from Google Places results that are already registered
+     */
+    private List<NearbyRestaurantResponse> removeDuplicateRestaurants(
+            List<NearbyRestaurantResponse> googleRestaurants,
+            List<Restaurant> registeredRestaurants) {
+        return googleRestaurants.stream()
+                .filter(gr -> !isAlreadyRegistered(gr, registeredRestaurants))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Check if a Google Places restaurant is already registered
+     */
+    private boolean isAlreadyRegistered(NearbyRestaurantResponse googleRestaurant, List<Restaurant> registeredRestaurants) {
+        for (Restaurant registered : registeredRestaurants) {
+            // Check name similarity (simple contains check)
+            String googleName = googleRestaurant.getName().toLowerCase();
+            String registeredName = registered.getOrganizationName().toLowerCase();
+
+            if (googleName.contains(registeredName) || registeredName.contains(googleName)) {
+                return true;
+            }
+
+            // Check address similarity if both have addresses
+            if (googleRestaurant.getAddress() != null && registered.getAddress() != null) {
+                String googleAddr = googleRestaurant.getAddress().toLowerCase();
+                String registeredAddr = registered.getAddress().toLowerCase();
+
+                if (googleAddr.contains(registeredAddr) || registeredAddr.contains(googleAddr)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
