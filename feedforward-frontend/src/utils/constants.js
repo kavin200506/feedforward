@@ -10,12 +10,16 @@ export const USER_ROLES = {
 
 // Food Categories
 export const FOOD_CATEGORIES = [
-  { value: 'Cooked Rice', label: '🍚 Cooked Rice', emoji: '🍚' },
-  { value: 'Vegetables', label: '🥗 Vegetables', emoji: '🥗' },
-  { value: 'Bread', label: '🍞 Bread', emoji: '🍞' },
-  { value: 'Proteins', label: '🍗 Proteins', emoji: '🍗' },
-  { value: 'Sweets', label: '🍰 Sweets', emoji: '🍰' },
-  { value: 'Other', label: '📦 Other', emoji: '📦' },
+  // IMPORTANT: value must match backend enum com.feedforward.enums.FoodCategory
+  { value: 'COOKED_RICE', label: '🍚 Cooked Rice', emoji: '🍚' },
+  { value: 'VEGETABLES', label: '🥗 Vegetables', emoji: '🥗' },
+  { value: 'BREAD', label: '🍞 Bread', emoji: '🍞' },
+  { value: 'PROTEINS', label: '🍗 Proteins', emoji: '🍗' },
+  { value: 'SWEETS', label: '🍰 Sweets', emoji: '🍰' },
+  { value: 'FRUITS', label: '🍎 Fruits', emoji: '🍎' },
+  { value: 'BEVERAGES', label: '🥤 Beverages', emoji: '🥤' },
+  { value: 'SNACKS', label: '🍿 Snacks', emoji: '🍿' },
+  { value: 'OTHER', label: '📦 Other', emoji: '📦' },
 ];
 
 // Food Units

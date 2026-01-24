@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Modal, Input, Button } from '../common';
-import { restaurantService } from '../../services';
+import { foodListingService } from '../../services';
 import { useNotification } from '../../context/NotificationContext';
-import SuggestedNgosCard from './SuggestedNgosCard';
+import NearbyNgosCard from './NearbyNgosCard';
 import { FOOD_CATEGORIES, FOOD_UNITS, DIETARY_OPTIONS } from '../../utils/constants';
 import { calculateUrgency } from '../../utils/helpers';
 import './AddFoodModal.css';
@@ -22,6 +22,7 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
   });
 
   const [suggestedNgos, setSuggestedNgos] = useState([]);
+  const [nearbyNgoPlaces, setNearbyNgoPlaces] = useState([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
@@ -88,11 +89,16 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
         description: formData.description,
       };
 
-      const response = await restaurantService.addFoodListing(payload);
-      
-      // Show suggested NGOs if available
-      if (response.suggestedNgos && response.suggestedNgos.length > 0) {
-        setSuggestedNgos(response.suggestedNgos);
+      const apiResponse = await foodListingService.addFoodListing(payload);
+      const listing = apiResponse?.data || apiResponse;
+
+      const suggested = listing?.suggestedNgos || [];
+      const places = listing?.nearbyNgoPlaces || [];
+
+      // Show success modal if we have anything to show
+      if (suggested.length > 0 || places.length > 0) {
+        setSuggestedNgos(suggested);
+        setNearbyNgoPlaces(places);
         setShowSuccessModal(true);
       } else {
         showSuccess('Food listing added successfully!');
@@ -100,7 +106,11 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
         if (onSuccess) onSuccess();
       }
     } catch (error) {
-      showError(error.message || 'Failed to add food listing');
+      const message =
+        typeof error === 'string'
+          ? error
+          : error?.message || 'Failed to add food listing';
+      showError(message);
     } finally {
       setLoading(false);
     }
@@ -119,6 +129,7 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
     });
     setErrors({});
     setSuggestedNgos([]);
+    setNearbyNgoPlaces([]);
     setShowSuccessModal(false);
     onClose();
   };
@@ -156,9 +167,12 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
         <div className="success-modal-content">
           <div className="success-icon">✅</div>
           <h3>Your food has been listed!</h3>
-          <p>We found {suggestedNgos.length} nearby NGOs that might need this food.</p>
+          <p>
+            We found <strong>{suggestedNgos.length}</strong> registered NGOs and{' '}
+            <strong>{nearbyNgoPlaces.length}</strong> nearby NGOs (Google) that might need this food.
+          </p>
           
-          <SuggestedNgosCard ngos={suggestedNgos} />
+          <NearbyNgosCard registeredNgos={suggestedNgos} unregisteredNgos={nearbyNgoPlaces} />
           
           <Button variant="primary" fullWidth onClick={handleSuccessClose}>
             Got it!
