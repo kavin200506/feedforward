@@ -4,8 +4,9 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { Button, Input } from '../common';
 import RoleSelector from './RoleSelector';
-import { FaEnvelope, FaLock, FaUser, FaPhone, FaMapMarkerAlt } from 'react-icons/fa';
+import { FaEnvelope, FaLock, FaUser, FaPhone, FaMapMarkerAlt, FaLocationArrow, FaCheckCircle } from 'react-icons/fa';
 import { USER_ROLES, CUISINE_TYPES } from '../../utils/constants';
+import locationService from '../../services/locationService';
 import './RegisterForm.css';
 
 const RegisterForm = ({ onSuccess, initialRole, onSwitchToLogin }) => {
@@ -60,6 +61,10 @@ const RegisterForm = ({ onSuccess, initialRole, onSwitchToLogin }) => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [passwordStrength, setPasswordStrength] = useState(0);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsError, setGpsError] = useState('');
+  const [gpsSuccess, setGpsSuccess] = useState(false);
+  const [capturedCoordinates, setCapturedCoordinates] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -69,6 +74,13 @@ const RegisterForm = ({ onSuccess, initialRole, onSwitchToLogin }) => {
     if (name === 'password') {
       calculatePasswordStrength(value);
     }
+
+    // Clear GPS success state if coordinates are manually edited
+    if (name === 'latitude' || name === 'longitude') {
+      setGpsSuccess(false);
+      setCapturedCoordinates(null);
+    }
+    // Note: Address can be edited manually without clearing GPS success
 
     // Clear error
     if (errors[name]) {
@@ -100,6 +112,74 @@ const RegisterForm = ({ onSuccess, initialRole, onSwitchToLogin }) => {
     if (passwordStrength < 40) return { label: 'Weak', color: '#F44336' };
     if (passwordStrength < 70) return { label: 'Medium', color: '#FF9800' };
     return { label: 'Strong', color: '#4CAF50' };
+  };
+
+  const handleGetCurrentLocation = async () => {
+    setGpsLoading(true);
+    setGpsError('');
+    setGpsSuccess(false);
+    setCapturedCoordinates(null);
+
+    try {
+      // Call locationService to get location with address
+      if (!locationService || !locationService.getLocationWithAddress) {
+        throw new Error('Location service is not available.');
+      }
+      const { latitude, longitude, address } = await locationService.getLocationWithAddress();
+
+      // Update form data with coordinates and address
+      setFormData((prev) => ({
+        ...prev,
+        latitude: latitude.toFixed(6),
+        longitude: longitude.toFixed(6),
+        address: address || prev.address, // Auto-fill address if available, otherwise keep existing
+      }));
+
+      // Store captured coordinates for display
+      setCapturedCoordinates({
+        latitude: latitude.toFixed(6),
+        longitude: longitude.toFixed(6),
+      });
+
+      setGpsLoading(false);
+      setGpsSuccess(true);
+      setGpsError('');
+
+      // Clear any existing errors for latitude/longitude/address
+      setErrors((prev) => ({
+        ...prev,
+        latitude: '',
+        longitude: '',
+        address: '',
+      }));
+
+      // Show success message
+      if (address) {
+        showSuccess(`Location captured! Address auto-filled.`);
+      } else {
+        showSuccess(`Location captured! Latitude: ${latitude.toFixed(6)}, Longitude: ${longitude.toFixed(6)}`);
+        // Show warning if address conversion failed
+        setGpsError('Address could not be automatically retrieved. Please enter your address manually.');
+      }
+    } catch (error) {
+      setGpsLoading(false);
+      setGpsSuccess(false);
+      setCapturedCoordinates(null);
+
+      let errorMessage = error.message || 'Failed to get your location. Please try again.';
+      setGpsError(errorMessage);
+
+      // Set validation errors if permission denied
+      if (errorMessage.includes('permission denied') || errorMessage.includes('Permission denied')) {
+        setErrors((prev) => ({
+          ...prev,
+          latitude: 'GPS location is required',
+          longitude: 'GPS location is required',
+        }));
+      }
+
+      showError(errorMessage);
+    }
   };
 
   const validate = () => {
@@ -501,6 +581,49 @@ const RegisterForm = ({ onSuccess, initialRole, onSwitchToLogin }) => {
           {errors.address && <span className="input-error-message shake">{errors.address}</span>}
         </div>
 
+        {/* GPS Location Capture */}
+        <div className="gps-location-section">
+          <button
+            type="button"
+            className="gps-button"
+            onClick={handleGetCurrentLocation}
+            disabled={gpsLoading}
+          >
+            {gpsLoading ? (
+              <>
+                <span className="gps-spinner">⏳</span>
+                Getting Location...
+              </>
+            ) : (
+              <>
+                <span>📍</span>
+                Use Current Location (GPS)
+              </>
+            )}
+          </button>
+          
+          {gpsError && (
+            <div className="gps-error">
+              <span className="gps-error-icon">⚠️</span>
+              <span>{gpsError}</span>
+            </div>
+          )}
+          
+          {gpsSuccess && capturedCoordinates && (
+            <div className="gps-success-container">
+              <div className="gps-success">
+                <FaCheckCircle className="gps-success-icon" />
+                <span>✅ Location Captured</span>
+              </div>
+              {capturedCoordinates && (
+                <div className="gps-coordinates">
+                  Lat: {capturedCoordinates.latitude}, Lng: {capturedCoordinates.longitude}
+              </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="form-row">
           <Input
             label="Latitude"
@@ -510,7 +633,6 @@ const RegisterForm = ({ onSuccess, initialRole, onSwitchToLogin }) => {
             value={formData.latitude}
             onChange={handleChange}
             error={errors.latitude}
-            helperText="Get from Google Maps"
             step="any"
             required
           />
@@ -523,15 +645,9 @@ const RegisterForm = ({ onSuccess, initialRole, onSwitchToLogin }) => {
             value={formData.longitude}
             onChange={handleChange}
             error={errors.longitude}
-            helperText="Get from Google Maps"
             step="any"
             required
           />
-        </div>
-
-        <div className="helper-box">
-          <span className="helper-icon">💡</span>
-          <span>Right-click any location on Google Maps and copy the coordinates</span>
         </div>
       </div>
 
