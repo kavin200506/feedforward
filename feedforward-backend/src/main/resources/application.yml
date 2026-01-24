@@ -50,3 +50,11 @@ logging:
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
 
+# Google APIs (optional)
+# Set env var GOOGLE_PLACES_API_KEY to enable nearby unregistered NGO lookup via Google Places.
+google:
+  places:
+    api-key: ${GOOGLE_PLACES_API_KEY:}
+    nearby-search-url: https://maps.googleapis.com/maps/api/place/nearbysearch/json
+    radius-meters: 5000
+

@@ -3,6 +3,7 @@ package com.feedforward.service;
 import com.feedforward.dto.request.FoodListingRequest;
 import com.feedforward.dto.request.SearchFoodRequest;
 import com.feedforward.dto.response.FoodListingResponse;
+import com.feedforward.dto.response.NearbyNgoPlaceResponse;
 import com.feedforward.dto.response.SuggestedNgoResponse;
 import com.feedforward.entity.FoodListing;
 import com.feedforward.entity.Ngo;
@@ -25,6 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,6 +40,7 @@ public class FoodListingService {
     private final RestaurantRepository restaurantRepository;
     private final NgoRepository ngoRepository;
     private final MatchingAlgorithmService matchingAlgorithmService;
+    private final GooglePlacesService googlePlacesService;
 
     /**
      * Add new food listing (Restaurant only)
@@ -75,7 +79,29 @@ public class FoodListingService {
         List<SuggestedNgoResponse> suggestedNgos = matchingAlgorithmService
                 .findMatchingNgos(listing);
 
-        return buildFoodListingResponse(listing, 0.0, suggestedNgos);
+        // Find nearby NGO-like organizations via Google Places (may include unregistered)
+        List<NearbyNgoPlaceResponse> nearbyNgoPlaces = googlePlacesService.findNearbyNgoPlaces(
+                restaurant.getLatitude().doubleValue(),
+                restaurant.getLongitude().doubleValue()
+        );
+
+        // Filter out Google results that look like already-registered suggestions (best-effort by name)
+        Set<String> registeredNames = suggestedNgos == null ? Set.of() :
+                suggestedNgos.stream()
+                        .map(SuggestedNgoResponse::getName)
+                        .filter(Objects::nonNull)
+                        .map(n -> n.trim().toLowerCase())
+                        .collect(Collectors.toSet());
+
+        List<NearbyNgoPlaceResponse> filteredPlaces = nearbyNgoPlaces == null ? null :
+                nearbyNgoPlaces.stream()
+                        .filter(p -> {
+                            String n = p.getName() == null ? "" : p.getName().trim().toLowerCase();
+                            return n.isBlank() || !registeredNames.contains(n);
+                        })
+                        .collect(Collectors.toList());
+
+        return buildFoodListingResponse(listing, 0.0, suggestedNgos, null, filteredPlaces);
     }
 
     /**
@@ -247,7 +273,7 @@ public class FoodListingService {
             Double distance,
             List<SuggestedNgoResponse> suggestedNgos
     ) {
-        return buildFoodListingResponse(listing, distance, suggestedNgos, null);
+        return buildFoodListingResponse(listing, distance, suggestedNgos, null, null);
     }
 
     private FoodListingResponse buildFoodListingResponse(
@@ -255,6 +281,16 @@ public class FoodListingService {
             Double distance,
             List<SuggestedNgoResponse> suggestedNgos,
             Integer matchScore
+    ) {
+        return buildFoodListingResponse(listing, distance, suggestedNgos, matchScore, null);
+    }
+
+    private FoodListingResponse buildFoodListingResponse(
+            FoodListing listing,
+            Double distance,
+            List<SuggestedNgoResponse> suggestedNgos,
+            Integer matchScore,
+            List<NearbyNgoPlaceResponse> nearbyNgoPlaces
     ) {
         // Calculate time remaining
         String timeRemaining = calculateTimeRemaining(listing.getExpiryTime());
@@ -283,6 +319,7 @@ public class FoodListingService {
                 .distance(distance)
                 .matchScore(matchScore)
                 .suggestedNgos(suggestedNgos)
+                .nearbyNgoPlaces(nearbyNgoPlaces)
                 .build();
     }
 
