@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ngoService } from '../../services';
 import { useNotification } from '../../context/NotificationContext';
-import { Card, Button, Badge, Loader } from '../../components/common';
+import { Card, Button, Badge, Skeleton } from '../../components/common';
 import { FiMapPin, FiPhone, FiClock, FiCheckCircle } from 'react-icons/fi';
 import { formatDateTime, getStatusColor } from '../../utils/helpers';
 import './NgoRequests.css';
@@ -64,9 +64,9 @@ const NgoRequests = () => {
     }
   };
 
-  if (loading) {
-    return <Loader fullScreen text="Loading requests..." />;
-  }
+  // if (loading) {
+  //   return <Loader fullScreen text="Loading requests..." />;
+  // }
 
   const displayedRequests = activeTab === 'active' 
     ? requests.activeRequests 
@@ -100,7 +100,13 @@ const NgoRequests = () => {
 
         {/* Requests List */}
         <div className="requests-list">
-          {displayedRequests && displayedRequests.length > 0 ? (
+          {loading ? (
+             <>
+               <Skeleton type="card" height="200px" style={{ marginBottom: '1rem' }} />
+               <Skeleton type="card" height="200px" style={{ marginBottom: '1rem' }} />
+               <Skeleton type="card" height="200px" style={{ marginBottom: '1rem' }} />
+             </>
+          ) : displayedRequests && displayedRequests.length > 0 ? (
             displayedRequests.map((request) => (
               <Card key={request.requestId} className="request-card-full">
                 <div className="request-card-header">

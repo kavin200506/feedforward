@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { ngoService, dashboardService } from '../../services';
-import { Button, Card, Loader } from '../../components/common';
+import { Button, Card, Skeleton } from '../../components/common';
 import { FiSearch, FiPackage, FiCheckCircle, FiUsers } from 'react-icons/fi';
 import './NgoDashboard.css';
 
@@ -48,9 +48,9 @@ const NgoDashboard = () => {
     }
   };
 
-  if (loading) {
-    return <Loader fullScreen text="Loading dashboard..." />;
-  }
+  // if (loading) {
+  //   return <Loader fullScreen text="Loading dashboard..." />;
+  // }
 
   return (
     <div className="ngo-dashboard">
@@ -78,7 +78,9 @@ const NgoDashboard = () => {
               <FiPackage size={32} />
             </div>
             <div className="stat-content">
-              <div className="stat-number">{stats.activeRequests || 0}</div>
+              <div className="stat-number">
+                {loading ? <Skeleton width="60px" height="32px" /> : (stats.activeRequests || 0)}
+              </div>
               <div className="stat-label">Active Requests</div>
             </div>
           </Card>
@@ -88,7 +90,9 @@ const NgoDashboard = () => {
               <FiCheckCircle size={32} />
             </div>
             <div className="stat-content">
-              <div className="stat-number">{stats.totalReceived || 0}</div>
+              <div className="stat-number">
+                {loading ? <Skeleton width="60px" height="32px" /> : (stats.totalReceived || 0)}
+              </div>
               <div className="stat-label">Total Servings Received</div>
             </div>
           </Card>
@@ -98,7 +102,9 @@ const NgoDashboard = () => {
               <FiUsers size={32} />
             </div>
             <div className="stat-content">
-              <div className="stat-number">{stats.beneficiariesFed || 0}</div>
+              <div className="stat-number">
+                {loading ? <Skeleton width="60px" height="32px" /> : (stats.beneficiariesFed || 0)}
+              </div>
               <div className="stat-label">People Fed This Month</div>
             </div>
           </Card>
@@ -107,7 +113,17 @@ const NgoDashboard = () => {
         {/* Main Content */}
         <div className="dashboard-content">
           {/* Active Requests Section */}
-          {recentRequests.length > 0 && (
+          {loading ? (
+            <div className="dashboard-section">
+              <div className="section-header">
+                <Skeleton width="180px" height="28px" />
+                <Skeleton width="80px" height="20px" />
+              </div>
+              <div className="requests-grid">
+                 <Skeleton type="card" height="150px" count={3} />
+              </div>
+            </div>
+          ) : recentRequests.length > 0 && (
             <div className="dashboard-section">
               <div className="section-header">
                 <h2 className="section-title">Active Requests</h2>
@@ -154,7 +170,12 @@ const NgoDashboard = () => {
                 Browse All
               </Button>
             </div>
-            {suggestedFood.length > 0 ? (
+            {loading ? (
+              <div className="food-grid">
+                 <Skeleton type="card" height="180px" count={3} />
+                 <Skeleton type="card" height="180px" count={3} />
+              </div>
+            ) : suggestedFood.length > 0 ? (
               <div className="food-grid">
                 {suggestedFood.map((food) => (
                   <Card key={food.listingId} className="food-card-mini" hover>

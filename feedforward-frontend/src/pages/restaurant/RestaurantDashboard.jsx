@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { restaurantService, dashboardService, foodListingService } from '../../services';
-import { Button, Card, Loader, Pagination } from '../../components/common';
+import { Button, Card, Skeleton, Pagination } from '../../components/common';
 import AddFoodModal from '../../components/restaurant/AddFoodModal';
 import FoodListingsTable from '../../components/restaurant/FoodListingsTable';
 import RequestsPanel from '../../components/restaurant/RequestsPanel';
@@ -79,9 +79,9 @@ const RestaurantDashboard = () => {
     return listings.slice(start, end);
   }, [listings, listingsPage, listingsPerPage]);
 
-  if (loading) {
-    return <Loader fullScreen text="Loading dashboard..." />;
-  }
+  // if (loading) {
+  //   return <Loader fullScreen text="Loading dashboard..." />;
+  // }
 
   return (
     <div className="restaurant-dashboard">
@@ -109,7 +109,9 @@ const RestaurantDashboard = () => {
               <FiPackage size={32} />
             </div>
             <div className="stat-content">
-              <div className="stat-number">{stats.activeListings || 0}</div>
+              <div className="stat-number">
+                {loading ? <Skeleton width="60px" height="32px" /> : (stats.activeListings || 0)}
+              </div>
               <div className="stat-label">Active Listings</div>
             </div>
           </Card>
@@ -119,7 +121,9 @@ const RestaurantDashboard = () => {
               <FiClock size={32} />
             </div>
             <div className="stat-content">
-              <div className="stat-number">{stats.pendingRequests || 0}</div>
+              <div className="stat-number">
+                {loading ? <Skeleton width="60px" height="32px" /> : (stats.pendingRequests || 0)}
+              </div>
               <div className="stat-label">Pending Requests</div>
             </div>
           </Card>
@@ -129,7 +133,9 @@ const RestaurantDashboard = () => {
               <FiCheckCircle size={32} />
             </div>
             <div className="stat-content">
-              <div className="stat-number">{stats.totalDonated || 0}</div>
+              <div className="stat-number">
+                {loading ? <Skeleton width="60px" height="32px" /> : (stats.totalDonated || 0)}
+              </div>
               <div className="stat-label">Total Servings Donated</div>
             </div>
           </Card>
@@ -138,7 +144,15 @@ const RestaurantDashboard = () => {
         {/* Main Content */}
         <div className="dashboard-content">
           {/* Pending Requests Section */}
-          {requests.length > 0 && (
+          {loading ? (
+            <div className="dashboard-section">
+              <div className="section-header">
+                <Skeleton width="180px" height="28px" />
+                <Skeleton width="80px" height="20px" />
+              </div>
+              <Skeleton type="card" height="120px" count={2} style={{ marginBottom: '1rem' }} />
+            </div>
+          ) : requests.length > 0 && (
             <div className="dashboard-section">
               <div className="section-header">
                 <h2 className="section-title">Pending Requests</h2>
@@ -158,15 +172,21 @@ const RestaurantDashboard = () => {
             <div className="section-header">
               <h2 className="section-title">Active Food Listings</h2>
               <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                <Button variant="outline" size="small" onClick={handleDeleteAllActive}>
-                  Delete All
-                </Button>
-                <Button variant="link" size="small" onClick={() => navigate('/restaurant/listings')}>
-                  View All
-                </Button>
+                {!loading && (
+                  <>
+                    <Button variant="outline" size="small" onClick={handleDeleteAllActive}>
+                      Delete All
+                    </Button>
+                    <Button variant="link" size="small" onClick={() => navigate('/restaurant/listings')}>
+                      View All
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
-            {listings.length > 0 ? (
+            {loading ? (
+              <Skeleton type="card" height="300px" />
+            ) : listings.length > 0 ? (
               <>
                 <FoodListingsTable 
                   listings={paginatedListings} 

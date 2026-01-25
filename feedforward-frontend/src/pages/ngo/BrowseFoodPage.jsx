@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ngoService } from '../../services';
 import { useNotification } from '../../context/NotificationContext';
-import { Loader, Button, Pagination } from '../../components/common';
+import { Skeleton, Button, Pagination } from '../../components/common';
 import FilterSidebar from '../../components/ngo/FilterSidebar';
 import FoodCard from '../../components/ngo/FoodCard';
 import RequestFoodModal from '../../components/ngo/RequestFoodModal';
@@ -169,8 +169,18 @@ const BrowseFoodPage = () => {
 
             {/* Registered Food Listings Section */}
             {loading ? (
-              <div className="loading-container">
-                <Loader text="Loading food listings..." />
+              <div className="results-section">
+                <Skeleton width="300px" height="32px" style={{ marginBottom: '1.5rem' }} />
+                <div className="food-grid">
+                  <Skeleton type="card" height="380px" count={6} />
+                </div>
+                
+                <div style={{ marginTop: '3rem' }}>
+                  <Skeleton width="300px" height="32px" style={{ marginBottom: '1.5rem' }} />
+                  <div className="food-grid">
+                    <Skeleton type="card" height="200px" count={3} />
+                  </div>
+                </div>
               </div>
             ) : (
               <>
