@@ -89,7 +89,7 @@ const BrowseFoodPage = () => {
         setFoodListings(fallbackResponse.foodListings || []);
         setNearbyRestaurants([]);
       } catch (fallbackError) {
-        showError('Failed to load food listings');
+        console.error('Failed to load food listings (fallback endpoint):', fallbackError);
       }
     } finally {
       setLoading(false);

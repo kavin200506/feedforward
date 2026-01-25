@@ -27,9 +27,16 @@ public class MatchingAlgorithmService {
     private final NgoRepository ngoRepository;
 
     /**
-     * Find matching NGOs for a food listing using AI-based scoring
+     * Find matching NGOs for a food listing using AI-based scoring (Default limit = 5)
      */
     public List<SuggestedNgoResponse> findMatchingNgos(FoodListing listing) {
+        return findMatchingNgos(listing, MAX_SUGGESTIONS, 0); // Default: Top 5, offset 0
+    }
+
+    /**
+     * Find matching NGOs with pagination/batch support
+     */
+    public List<SuggestedNgoResponse> findMatchingNgos(FoodListing listing, int limit, int offset) {
         logger.info("Finding matching NGOs for listing: {}", listing.getListingId());
 
         // Get all NGOs within maximum distance
@@ -62,10 +69,11 @@ public class MatchingAlgorithmService {
                     .build());
         }
 
-        // Sort by match score (descending) and return top N
+        // Sort by match score (descending) and return paginated results
         return suggestions.stream()
                 .sorted(Comparator.comparingInt(SuggestedNgoResponse::getMatchScore).reversed())
-                .limit(MAX_SUGGESTIONS)
+                .skip(offset)
+                .limit(limit)
                 .collect(Collectors.toList());
     }
 

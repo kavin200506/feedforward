@@ -6,6 +6,7 @@ import com.feedforward.dto.response.NearbyRestaurantResponse;
 import com.feedforward.dto.response.NearbyRestaurantsResponse;
 import com.feedforward.dto.response.NgoWithContactResponse;
 import com.feedforward.dto.response.RestaurantWithContactResponse;
+import com.feedforward.dto.response.SuggestedNgoResponse;
 import com.feedforward.entity.FoodListing;
 import com.feedforward.entity.Ngo;
 import com.feedforward.entity.Restaurant;
@@ -634,6 +635,85 @@ public class NotificationService {
 
         // Return total notification count (SMS + Email)
         return Math.max(smsCount, emailCount);
+    }
+
+    /**
+     * Notify next batch of NGOs (Escalation)
+     */
+    public int notifyNextBatch(FoodListing foodListing) {
+        try {
+            int batchSize = 5;
+            int batchNumber = foodListing.getBatchNumber();
+            int offset = (batchNumber - 1) * batchSize;
+            
+            // We want the NEXT batch, so offset logic:
+            // Batch 1 (initial): offset 0 (0-4 notifications sent initially)
+            // Batch 2 (escalation 1): offset 5 (5-9)
+            // But wait, the initial notification sent to TOP 10 (batch 1+2 effectively?).
+            // Let's refine based on user request: "Batch 2 -> NGOs 6-10".
+            // If TOP_N was 10, then batch 1 was actually 1-10?
+            // The prompt says: "First batch (NGOs 1–5) has already been notified."
+            // But my TOP_N constant is 10. Let's adjust logic to respect batch size of 5.
+            
+            // Re-calculating offset for escalation:
+            // Initial (Batch 1): 0-4
+            // Escalation (Batch 2): 5-9
+            // Escalation (Batch 3): 10-14
+            
+            // If current batch is 1 (meaning we are escalating FROM 1 TO 2), we want 5-9.
+            // If current batch is 2 (escalating FROM 2 TO 3), we want 10-14.
+            
+            // So for "escalating to batch N+1", we fetch with offset = N * 5.
+            // Example:
+            // Current batch = 1. We want batch 2 (index 5-9). Offset = 1 * 5 = 5. Limit = 5.
+            // Current batch = 2. We want batch 3 (index 10-14). Offset = 2 * 5 = 10. Limit = 5.
+            
+            int targetOffset = batchNumber * batchSize;
+            
+            logger.info("🚀 Escalating notifications for listing {} to Batch {} (Offset: {}, Limit: {})", 
+                    foodListing.getListingId(), batchNumber + 1, targetOffset, batchSize);
+
+            // Find matching NGOs with pagination
+            List<SuggestedNgoResponse> nextBatchSuggestions = matchingAlgorithmService.findMatchingNgos(
+                    foodListing, batchSize, targetOffset
+            );
+
+            if (nextBatchSuggestions.isEmpty()) {
+                logger.info("No more NGOs found for escalation batch {}", batchNumber + 1);
+                return 0;
+            }
+
+            // Convert suggestions to NGO entities with contact info
+            // Note: matchingAlgorithmService returns IDs, we need to fetch entities or contact info
+            // For efficiency, let's fetch by IDs
+            List<Long> ngoIds = nextBatchSuggestions.stream()
+                    .map(SuggestedNgoResponse::getNgoId)
+                    .collect(Collectors.toList());
+            
+            List<Ngo> ngos = ngoRepository.findAllById(ngoIds);
+            
+            // Map to NgoWithContactResponse for notification method
+            List<NgoWithContactResponse> ngoContacts = ngos.stream()
+                .map(ngo -> {
+                    // Calculate distance again (or pass it from suggestion)
+                    double distance = matchingAlgorithmService.calculateDistance(
+                            foodListing.getRestaurant().getLatitude().doubleValue(),
+                            foodListing.getRestaurant().getLongitude().doubleValue(),
+                            ngo.getLatitude().doubleValue(),
+                            ngo.getLongitude().doubleValue()
+                    );
+                    return buildNgoWithContact(ngo, distance);
+                })
+                .filter(res -> res != null)
+                .collect(Collectors.toList());
+
+            // Notify them using existing method
+            return notifyRegisteredNgos(ngoContacts, foodListing, foodListing.getRestaurant());
+
+        } catch (Exception e) {
+            logger.error("Error in notifyNextBatch: {}", e.getMessage(), e);
+            return 0;
+        }
     }
 
     /**

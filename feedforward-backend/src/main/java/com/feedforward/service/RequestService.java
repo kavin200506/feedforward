@@ -323,9 +323,10 @@ public class RequestService {
         // Complete request
         request.complete();
 
-        // Update listing status
-        request.getFoodListing().setStatus(ListingStatus.COMPLETED);
-        listingRepository.save(request.getFoodListing());
+        // Note: We do NOT set listing status to COMPLETED here.
+        // Listing status is managed by quantity in approveRequest.
+        // If there is valid quantity remaining, it stays AVAILABLE for other NGOs.
+
 
         // Create donation history
         createDonationHistory(request, dto);
