@@ -19,7 +19,8 @@ const BrowseFoodPage = () => {
   const [filters, setFilters] = useState({
     distance: 10,
     category: [],
-    dietary: [],
+    dietaryType: '', // Required - single choice
+    allergens: [], // Optional - multi-select
     urgency: [],
     sortBy: 'expiry',
   });
@@ -43,10 +44,19 @@ const BrowseFoodPage = () => {
   const fetchFoodListings = async () => {
     setLoading(true);
     try {
+      // Format dietary info: combine dietary type and allergens
+      const dietaryInfoParts = [];
+      if (filters.dietaryType) {
+        dietaryInfoParts.push(filters.dietaryType);
+      }
+      if (filters.allergens && filters.allergens.length > 0) {
+        dietaryInfoParts.push(...filters.allergens);
+      }
+
       const params = {
         distance: filters.distance,
         category: filters.category.length > 0 ? filters.category[0] : null,
-        dietaryInfo: filters.dietary.join(','),
+        dietaryInfo: dietaryInfoParts.join(','),
         sortBy: filters.sortBy,
         search: debouncedSearch,
       };
@@ -59,10 +69,19 @@ const BrowseFoodPage = () => {
       showError('Failed to load food listings');
       // Fallback to old endpoint if new one fails
       try {
+        // Format dietary info for fallback
+        const fallbackDietaryParts = [];
+        if (filters.dietaryType) {
+          fallbackDietaryParts.push(filters.dietaryType);
+        }
+        if (filters.allergens && filters.allergens.length > 0) {
+          fallbackDietaryParts.push(...filters.allergens);
+        }
+
         const fallbackParams = {
           distance: filters.distance,
           category: filters.category.join(','),
-          dietaryInfo: filters.dietary.join(','),
+          dietaryInfo: fallbackDietaryParts.join(','),
           sortBy: filters.sortBy,
           search: debouncedSearch,
         };
@@ -281,7 +300,8 @@ const BrowseFoodPage = () => {
                       onClick={() => setFilters({
                         distance: 25,
                         category: [],
-                        dietary: [],
+                        dietaryType: '',
+                        allergens: [],
                         urgency: [],
                         sortBy: 'expiry',
                       })}

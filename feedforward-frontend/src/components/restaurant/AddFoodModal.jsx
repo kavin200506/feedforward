@@ -134,22 +134,32 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
         dietaryInfoParts.push(...formData.allergens);
       }
       
-      // For category, use first category if backend expects single value
-      // Or send as comma-separated if backend supports multiple
-      const categoryValue = Array.isArray(formData.category) 
-        ? formData.category[0] // Use first category for now (backend may need update)
+      // Backend expects single category (FoodCategory enum), so use first selected category
+      if (!formData.category || (Array.isArray(formData.category) && formData.category.length === 0)) {
+        throw new Error('Please select at least one category');
+      }
+      
+      const categoryValue = Array.isArray(formData.category) && formData.category.length > 0
+        ? formData.category[0] // Use first selected category
         : formData.category;
 
+      // Ensure dietary type is set
+      if (!formData.dietaryType) {
+        throw new Error('Please select a dietary type');
+      }
+
       const payload = {
-        foodName: formData.foodName,
+        foodName: formData.foodName.trim(),
         category: categoryValue,
         quantity: parseInt(formData.quantity),
         unit: formData.unit,
         preparedTime: formData.preparedTime,
         expiryTime: formData.expiryTime,
         dietaryInfo: dietaryInfoParts.join(', '),
-        description: formData.description,
+        description: formData.description?.trim() || '',
       };
+
+      console.log('📤 Submitting food listing payload:', payload);
 
       // Use new endpoint that returns top 10 organizations with contact info
       const response = await foodListingService.addFoodListingWithNearby(payload);
@@ -210,10 +220,14 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
       
       console.log('✅ State set successfully');
     } catch (error) {
+      console.error('❌ Error adding food listing:', error);
       const message =
         typeof error === 'string'
           ? error
-          : error?.message || 'Failed to add food listing';
+          : error?.message || 
+          error?.response?.data?.message ||
+          error?.response?.data?.error ||
+          'Failed to add food listing. Please check all fields and try again.';
       showError(message);
     } finally {
       setLoading(false);
@@ -469,7 +483,7 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
             <div className="input-wrapper">
               <label className="input-label">
                 Category <span className="input-required">*</span>
-                <span className="input-helper-text">(Select all that apply)</span>
+                <span className="input-helper-text">(Select at least one category)</span>
               </label>
               <div className="checkbox-group category-group">
                 <div className="checkbox-options">
@@ -478,7 +492,7 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
                       <input
                         type="checkbox"
                         value={cat.value}
-                        checked={formData.category.includes(cat.value)}
+                        checked={Array.isArray(formData.category) && formData.category.includes(cat.value)}
                         onChange={handleCategoryChange}
                       />
                       <span>{cat.label}</span>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Input, Button } from '../common';
-import { FOOD_CATEGORIES, DISTANCE_OPTIONS, DIETARY_OPTIONS } from '../../utils/constants';
+import { FOOD_CATEGORIES, DISTANCE_OPTIONS, DIETARY_TYPES, ALLERGEN_OPTIONS } from '../../utils/constants';
 import { FiSearch } from 'react-icons/fi';
 import './FilterSidebar.css';
 
@@ -13,19 +13,26 @@ const FilterSidebar = ({ filters, onFilterChange, searchQuery, onSearchChange })
     onFilterChange({ category: updated });
   };
 
-  const handleDietaryToggle = (dietary) => {
-    const current = filters.dietary || [];
-    const updated = current.includes(dietary)
-      ? current.filter((d) => d !== dietary)
-      : [...current, dietary];
-    onFilterChange({ dietary: updated });
+  // Handle dietary type (radio - single choice)
+  const handleDietaryTypeChange = (dietaryType) => {
+    onFilterChange({ dietaryType });
+  };
+
+  // Handle allergens (checkboxes - multi-select)
+  const handleAllergenToggle = (allergen) => {
+    const current = filters.allergens || [];
+    const updated = current.includes(allergen)
+      ? current.filter((a) => a !== allergen)
+      : [...current, allergen];
+    onFilterChange({ allergens: updated });
   };
 
   const handleReset = () => {
     onFilterChange({
       distance: 10,
       category: [],
-      dietary: [],
+      dietaryType: '',
+      allergens: [],
       urgency: [],
       sortBy: 'expiry',
     });
@@ -80,18 +87,62 @@ const FilterSidebar = ({ filters, onFilterChange, searchQuery, onSearchChange })
         </div>
       </div>
 
-      {/* Dietary Filter */}
+      {/* Dietary Type Filter - Optional - Radio Buttons */}
       <div className="filter-section">
-        <h4 className="filter-title">Dietary Preferences</h4>
+        <h4 className="filter-title">
+          Dietary Type
+          <span className="filter-helper">(Optional - filter by type)</span>
+        </h4>
+        <div className="radio-group">
+          <label className="radio-label">
+            <input
+              type="radio"
+              name="dietaryType"
+              value=""
+              checked={!filters.dietaryType || filters.dietaryType === ''}
+              onChange={() => handleDietaryTypeChange('')}
+            />
+            <div className="radio-content">
+              <span className="radio-main">All Types</span>
+              <span className="radio-description">Show all food regardless of dietary type</span>
+            </div>
+          </label>
+          {DIETARY_TYPES.map((type) => (
+            <label key={type.value} className="radio-label">
+              <input
+                type="radio"
+                name="dietaryType"
+                value={type.value}
+                checked={filters.dietaryType === type.value}
+                onChange={() => handleDietaryTypeChange(type.value)}
+              />
+              <div className="radio-content">
+                <span className="radio-main">{type.label}</span>
+                <span className="radio-description">{type.description}</span>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Allergen & Dietary Properties Filter - Optional - Checkboxes */}
+      <div className="filter-section">
+        <h4 className="filter-title">
+          Allergen & Dietary Info
+          <span className="filter-helper">(Select all that apply)</span>
+        </h4>
         <div className="checkbox-group">
-          {DIETARY_OPTIONS.map((option) => (
+          {ALLERGEN_OPTIONS.map((option) => (
             <label key={option.value} className="checkbox-label">
               <input
                 type="checkbox"
-                checked={(filters.dietary || []).includes(option.value)}
-                onChange={() => handleDietaryToggle(option.value)}
+                checked={(filters.allergens || []).includes(option.value)}
+                onChange={() => handleAllergenToggle(option.value)}
               />
-              <span>{option.label}</span>
+              <div className="checkbox-content">
+                <span className="checkbox-main">{option.label}</span>
+                <span className="checkbox-description">{option.description}</span>
+              </div>
             </label>
           ))}
         </div>
