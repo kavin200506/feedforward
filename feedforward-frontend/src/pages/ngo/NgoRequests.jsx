@@ -18,27 +18,68 @@ const NgoRequests = () => {
 
   useEffect(() => {
     fetchRequests();
+    
+    // Auto-refresh every 30 seconds to get updated request statuses
+    const interval = setInterval(() => {
+      fetchRequests();
+    }, 30000); // 30 seconds
+
+    // Refresh when window comes into focus
+    const handleFocus = () => {
+      fetchRequests();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
-  const fetchRequests = async () => {
-    setLoading(true);
+  const fetchRequests = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const data = await ngoService.getMyRequests();
       setRequests(data);
+      console.log('Requests fetched:', data);
     } catch (error) {
-      showError('Failed to load requests');
+      if (!silent) {
+        showError('Failed to load requests');
+      }
+      console.error('Fetch requests error:', error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   const handleMarkPickedUp = async (requestId) => {
     try {
-      await ngoService.markAsPickedUp(requestId);
+      console.log('Marking request as picked up:', requestId);
+      const response = await ngoService.markAsPickedUp(requestId);
+      console.log('Mark as picked up response:', response);
+      
+      // Optimistically update the UI immediately
+      setRequests(prev => ({
+        ...prev,
+        activeRequests: prev.activeRequests.map(req => 
+          req.requestId === requestId 
+            ? { ...req, status: 'PICKED_UP', pickedUpAt: new Date().toISOString() }
+            : req
+        )
+      }));
+      
       showSuccess('Marked as picked up!');
-      fetchRequests();
+      // Refresh to get latest data from server
+      await fetchRequests(true);
     } catch (error) {
-      showError('Failed to update status');
+      const errorMessage = error?.message || 
+                          error?.response?.data?.message || 
+                          error?.data?.message ||
+                          'Failed to update status';
+      console.error('Mark as picked up error:', error);
+      showError(errorMessage);
+      // Refresh to get correct state from server
+      await fetchRequests(true);
     }
   };
 

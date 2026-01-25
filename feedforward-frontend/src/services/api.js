@@ -39,9 +39,12 @@ api.interceptors.response.use(
       switch (status) {
         case 401:
           // Unauthorized - clear token and redirect to login
-          localStorage.removeItem('authToken');
-          localStorage.removeItem('user');
-          window.location.href = '/auth';
+          // Only redirect if not already on auth page to prevent redirect loops
+          if (!window.location.pathname.includes('/auth')) {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('user');
+            window.location.href = '/auth';
+          }
           break;
 
         case 403:
@@ -63,7 +66,13 @@ api.interceptors.response.use(
           console.error('An error occurred:', data.message || 'Unknown error');
       }
 
-      return Promise.reject(error.response.data);
+      // Return error with message extracted from response
+      const errorData = error.response.data;
+      return Promise.reject({
+        message: errorData?.message || errorData?.error || 'An unexpected error occurred',
+        status: status,
+        data: errorData
+      });
     } else if (error.request) {
       // Request was made but no response received
       console.error('Network error - no response received');

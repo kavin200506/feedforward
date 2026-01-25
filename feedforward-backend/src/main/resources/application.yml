@@ -63,6 +63,12 @@ logging:
 google:
   places:
     api-key: ${GOOGLE_PLACES_API_KEY:}
+
+# Admin Configuration
+# Set ADMIN_SECRET_KEY environment variable for admin operations
+admin:
+  secret:
+    key: ${ADMIN_SECRET_KEY:CHANGE_THIS_IN_PRODUCTION}
     nearby-search-url: https://maps.googleapis.com/maps/api/place/nearbysearch/json
     radius-meters: 5000
 

@@ -13,8 +13,9 @@ import java.util.Optional;
 @Repository
 public interface NgoRepository extends JpaRepository<Ngo, Long> {
 
-    // Find NGO by user ID
-    Optional<Ngo> findByUser_UserId(Long userId);
+    // Find NGO by user ID (with eager fetch to prevent N+1)
+    @Query("SELECT n FROM Ngo n JOIN FETCH n.user WHERE n.user.userId = :userId")
+    Optional<Ngo> findByUser_UserId(@Param("userId") Long userId);
 
     // Find NGO with user details
     @Query("SELECT n FROM Ngo n JOIN FETCH n.user WHERE n.ngoId = :id")
