@@ -10,6 +10,7 @@ import com.feedforward.dto.response.SuggestedNgoResponse;
 import com.feedforward.entity.FoodListing;
 import com.feedforward.entity.Ngo;
 import com.feedforward.entity.Restaurant;
+import com.feedforward.exception.BadRequestException;
 import com.feedforward.repository.NgoRepository;
 import com.feedforward.repository.RestaurantRepository;
 import lombok.RequiredArgsConstructor;
@@ -190,6 +191,51 @@ public class NotificationService {
         email.append("3. Request the food you need\n");
         email.append("4. Coordinate pickup with the restaurant\n\n");
         
+        email.append("Thank you for being part of the FeedForward community!\n\n");
+        email.append("Best regards,\n");
+        email.append("The FeedForward Team");
+        
+        return email.toString();
+    }
+
+    /**
+     * Build email message for NGO food request to restaurants
+     */
+    private String buildFoodNeededEmail(
+            String ngoName,
+            Integer beneficiariesCount,
+            int quantityNeeded,
+            String foodPreference,
+            String ngoAddress,
+            String ngoPhone
+    ) {
+        StringBuilder email = new StringBuilder();
+        email.append("Hello,\n\n");
+        email.append("We have an urgent food request! ").append(ngoName).append(" needs your help to feed ").append(beneficiariesCount).append(" beneficiaries.\n\n");
+        
+        email.append("🍽️ Food Request Details:\n");
+        email.append("   • Quantity Needed: ").append(quantityNeeded).append(" servings\n");
+        email.append("   • Food Preference: ").append(foodPreference).append("\n");
+        email.append("   • Beneficiaries: ").append(beneficiariesCount).append(" people\n");
+        
+        email.append("\n");
+        email.append("📍 NGO Information:\n");
+        email.append("   • Name: ").append(ngoName).append("\n");
+        if (ngoAddress != null && !ngoAddress.isEmpty()) {
+            email.append("   • Address: ").append(ngoAddress).append("\n");
+        }
+        if (ngoPhone != null && !ngoPhone.isEmpty()) {
+            email.append("   • Phone: ").append(ngoPhone).append("\n");
+        }
+        
+        email.append("\n");
+        email.append("🚀 How You Can Help:\n");
+        email.append("1. Login to ").append(appName).append(" at ").append(baseUrl).append("\n");
+        email.append("2. Add a food listing with the requested quantity\n");
+        email.append("3. The NGO will be automatically notified\n");
+        email.append("4. Coordinate pickup with the NGO\n\n");
+        
+        email.append("Your contribution makes a huge difference in fighting food waste and helping those in need!\n\n");
         email.append("Thank you for being part of the FeedForward community!\n\n");
         email.append("Best regards,\n");
         email.append("The FeedForward Team");
@@ -767,6 +813,13 @@ public class NotificationService {
             int quantityNeeded,
             String foodPreference
     ) {
+        // Validate NGO has coordinates
+        if (ngo.getLatitude() == null || ngo.getLongitude() == null) {
+            logger.error("❌ NGO {} does not have coordinates (lat: {}, lng: {})", 
+                    ngo.getOrganizationName(), ngo.getLatitude(), ngo.getLongitude());
+            throw new BadRequestException("NGO location is not set. Please update your profile with location coordinates.");
+        }
+
         // Find all nearby registered restaurants
         List<Restaurant> nearbyRestaurants = findNearbyRestaurants(
                 ngo.getLatitude().doubleValue(),
@@ -837,7 +890,7 @@ public class NotificationService {
     }
 
     /**
-     * Send SMS to registered restaurants (top 10)
+     * Send SMS and Email to registered restaurants (top 10)
      */
     private int notifyRegisteredRestaurants(
             List<RestaurantWithContactResponse> restaurants,
@@ -848,7 +901,7 @@ public class NotificationService {
         if (restaurants.isEmpty()) return 0;
 
         // Build SMS message
-        String message = String.format(
+        String smsMessage = String.format(
                 "🤝 %s needs %d servings of %s food. Help feed %d beneficiaries. Login to %s to donate.",
                 ngo.getOrganizationName(),
                 quantityNeeded,
@@ -857,23 +910,82 @@ public class NotificationService {
                 appName
         );
 
-        // Collect phone numbers from top 10
+        // Collect valid phone numbers from top 10
+        logger.info("📱 Collecting phone numbers from {} restaurants", restaurants.size());
+        
         List<String> phoneNumbers = restaurants.stream()
-                .map(RestaurantWithContactResponse::getPhone)
+                .map(restaurant -> {
+                    String phone = restaurant.getPhone();
+                    boolean isValid = phone != null && !phone.isEmpty() && smsService.isValidIndianMobile(phone);
+                    logger.info("📱 Restaurant: '{}', Phone: '{}', Valid: {}", 
+                            restaurant.getOrganizationName(), phone, isValid);
+                    return phone;
+                })
                 .filter(phone -> phone != null && !phone.isEmpty())
                 .filter(smsService::isValidIndianMobile)
                 .collect(Collectors.toList());
 
-        // Send SMS
+        logger.info("📱 Valid phone numbers collected: {} out of {} restaurants", phoneNumbers.size(), restaurants.size());
+
+        // Send SMS in bulk
+        int smsCount = 0;
         if (!phoneNumbers.isEmpty()) {
-            boolean sent = smsService.sendSms(phoneNumbers, message);
-            if (sent) {
-                logger.info("SMS sent to {} restaurants (top 10)", phoneNumbers.size());
-                return phoneNumbers.size();
+            logger.info("📱 Attempting to send SMS to {} restaurants", phoneNumbers.size());
+            boolean smsSent = smsService.sendSms(phoneNumbers, smsMessage);
+            if (smsSent) {
+                logger.info("✅ SMS sent successfully to {} restaurants (top 10)", phoneNumbers.size());
+                smsCount = phoneNumbers.size();
+            } else {
+                logger.error("❌ Failed to send SMS to restaurants");
             }
+        } else {
+            logger.warn("⚠️ No valid phone numbers found in {} restaurants", restaurants.size());
         }
 
-        return 0;
+        // Send Emails to registered restaurants
+        List<String> emailAddresses = restaurants.stream()
+                .map(RestaurantWithContactResponse::getEmail)
+                .filter(email -> email != null && !email.isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
+
+        List<String> restaurantNames = restaurants.stream()
+                .map(RestaurantWithContactResponse::getOrganizationName)
+                .filter(name -> name != null && !name.isEmpty())
+                .collect(Collectors.toList());
+
+        int emailCount = 0;
+        if (!emailAddresses.isEmpty()) {
+            // Build email subject and message
+            String emailSubject = String.format("🤝 Food Needed: %s needs %d servings", 
+                    ngo.getOrganizationName(), quantityNeeded);
+            
+            String emailMessage = buildFoodNeededEmail(
+                    ngo.getOrganizationName(),
+                    ngo.getBeneficiariesCount(),
+                    quantityNeeded,
+                    foodPreference,
+                    ngo.getAddress(),
+                    ngo.getUser() != null ? ngo.getUser().getPhone() : null
+            );
+
+            logger.info("📧 Attempting to send emails to {} restaurants", emailAddresses.size());
+            logger.info("📧 Email addresses: {}", emailAddresses);
+            emailCount = emailService.sendBulkEmails(emailAddresses, emailSubject, emailMessage, restaurantNames);
+            if (emailCount > 0) {
+                logger.info("✅ Email sent successfully to {} restaurants (top 10)", emailCount);
+            } else {
+                logger.error("❌ Email sending failed for all {} restaurants. Check email configuration and logs above.", emailAddresses.size());
+            }
+        } else {
+            logger.warn("⚠️ No valid email addresses found in {} restaurants", restaurants.size());
+            logger.warn("📧 Restaurant email addresses: {}", restaurants.stream()
+                    .map(r -> r.getOrganizationName() + " -> " + r.getEmail())
+                    .collect(Collectors.joining(", ")));
+        }
+
+        // Return the maximum of SMS and email counts (at least one notification method succeeded)
+        return Math.max(smsCount, emailCount);
     }
 
     /**

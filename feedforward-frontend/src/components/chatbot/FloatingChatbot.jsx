@@ -1,10 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ChatMessage from './ChatMessage';
-import './chatbot.css';
+import './Chatbot.css';
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-// Using gemini-1.5-flash which is a stable and widely available model
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent';
+
+const getGeminiApiUrl = (model) => 
+  `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent`;
+
+const LIST_MODELS_URL = 'https://generativelanguage.googleapis.com/v1/models';
 
 const FloatingChatbot = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -25,6 +28,7 @@ const FloatingChatbot = () => {
   const chatWindowRef = useRef(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const availableModelRef = useRef(null); // Cache for available model
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -88,10 +92,7 @@ const FloatingChatbot = () => {
     }
   }, [isDragging, dragOffset]);
 
-  // Cache for available model
-  const availableModelRef = useRef(null);
-
-  // Function to get available model
+  // Function to get available model from API
   const getAvailableModel = async () => {
     // Return cached model if available
     if (availableModelRef.current) {
@@ -99,40 +100,31 @@ const FloatingChatbot = () => {
     }
 
     try {
-      // Try to list available models
-      const listUrl = `https://generativelanguage.googleapis.com/v1/models?key=${GEMINI_API_KEY}`;
-      console.log('Fetching available models from:', listUrl.replace(GEMINI_API_KEY, 'API_KEY_HIDDEN'));
+      // Fetch list of available models
+      const response = await fetch(`${LIST_MODELS_URL}?key=${GEMINI_API_KEY}`);
       
-      const response = await fetch(listUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch models: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const models = data.models || [];
       
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Available models response:', data);
-        const models = data.models || [];
-        
-        // Log all available models
-        console.log('Total models found:', models.length);
-        models.forEach(model => {
-          console.log(`- ${model.name} (supports: ${model.supportedGenerationMethods?.join(', ') || 'none'})`);
-        });
-        
-        // Find a model that supports generateContent
-        const supportedModel = models.find(model => 
-          model.supportedGenerationMethods?.includes('generateContent')
-        );
-        
-        if (supportedModel) {
-          // Extract model name (remove 'models/' prefix if present)
-          const modelName = supportedModel.name.replace('models/', '');
-          availableModelRef.current = modelName;
-          console.log('✅ Found available model:', modelName);
-          return modelName;
-        } else {
-          console.warn('⚠️ No model found that supports generateContent');
-        }
+      console.log('Available Gemini models:', models.length);
+      
+      // Find a model that supports generateContent
+      const supportedModel = models.find(model => 
+        model.supportedGenerationMethods?.includes('generateContent')
+      );
+      
+      if (supportedModel) {
+        // Extract model name (remove 'models/' prefix if present)
+        const modelName = supportedModel.name.replace(/^models\//, '');
+        availableModelRef.current = modelName;
+        console.log('✅ Using Gemini model:', modelName);
+        return modelName;
       } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('❌ Error fetching models:', response.status, errorData);
+        console.warn('⚠️ No model found that supports generateContent');
       }
     } catch (err) {
       console.warn('Could not fetch model list:', err);
@@ -148,7 +140,7 @@ const FloatingChatbot = () => {
     ];
 
     console.log('Using fallback model:', fallbackModels[0]);
-    return fallbackModels[0]; // Return first fallback
+    return fallbackModels[0];
   };
 
   const sendMessage = async () => {
@@ -167,12 +159,12 @@ const FloatingChatbot = () => {
 
     try {
       if (!GEMINI_API_KEY) {
-        throw new Error('Gemini API key is not configured');
+        throw new Error('Gemini API key is not configured. Please set VITE_GEMINI_API_KEY in your .env file.');
       }
 
-      // Get available model
+      // Get available model (will use cached if available)
       const modelName = await getAvailableModel();
-
+      
       // Try the model, with fallbacks if it fails
       const modelsToTry = [
         modelName,
@@ -199,7 +191,7 @@ const FloatingChatbot = () => {
 
           for (const modelVar of modelVariations) {
             try {
-              const apiUrl = `https://generativelanguage.googleapis.com/v1/${modelVar}:generateContent`;
+              const apiUrl = getGeminiApiUrl(modelVar);
               response = await fetch(
                 `${apiUrl}?key=${GEMINI_API_KEY}`,
                 {
@@ -225,6 +217,7 @@ const FloatingChatbot = () => {
                 data = await response.json();
                 successfulModel = modelVar;
                 availableModelRef.current = model; // Cache the working model
+                console.log(`✅ Successfully using Gemini model: ${modelVar}`);
                 break; // Success, exit inner loop
               } else {
                 const errorData = await response.json().catch(() => ({}));
@@ -247,10 +240,6 @@ const FloatingChatbot = () => {
         // Clear cache if all models failed
         availableModelRef.current = null;
         throw lastError || new Error('Failed to connect to Gemini API. Please check your API key and model availability.');
-      }
-      
-      if (successfulModel) {
-        console.log(`Successfully using model: ${successfulModel}`);
       }
 
       // Extract text from Gemini response
@@ -431,4 +420,3 @@ const FloatingChatbot = () => {
 };
 
 export default FloatingChatbot;
-

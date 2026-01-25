@@ -28,7 +28,7 @@ import ImpactPage from './pages/ImpactPage';
 
 // Route Components
 import DefaultRoute from './components/DefaultRoute';
-import Chatbot from './components/chatbot/Chatbot';
+import FloatingChatbot from './components/chatbot/FloatingChatbot';
 
 import './App.css';
 
@@ -111,7 +111,7 @@ function App() {
           </Routes>
         </main>
         <Footer />
-        <Chatbot />
+        <FloatingChatbot />
       </div>
     </Router>
   );
