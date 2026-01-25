@@ -229,7 +229,7 @@ const BrowseFoodPage = () => {
                         <div key={restaurant.placeId || index} className="nearby-restaurant-card">
                           <div className="restaurant-card-header">
                             <h3>🍽️ {restaurant.name}</h3>
-                            <span className="distance-badge orange">
+                            <span className="distance-badge">
                               {restaurant.distanceKm?.toFixed(1)} km
                             </span>
                           </div>

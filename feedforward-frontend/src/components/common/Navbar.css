@@ -46,7 +46,8 @@
 }
 
 .logo-text {
-  color: #2c3e50;
+  color: var(--color-primary); /* Changed to primary brand color */
+  font-weight: 800; /* Made slightly bolder */
 }
 
 .logo-badge {
