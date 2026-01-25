@@ -23,12 +23,12 @@ const NearbyRestaurantsPanel = () => {
 
     setLoading(true);
     try {
-      const response = await ngoService.notifyNearbyRestaurants({
+      const data = await ngoService.notifyNearbyRestaurants({
         quantityNeeded: parseInt(quantityNeeded),
         foodPreference: foodPreference
       });
 
-      const data = response?.data || response;
+      // Service already extracts the data from ApiResponse wrapper
       const registered = data?.registeredRestaurants || [];
       const unregistered = data?.unregisteredRestaurants || [];
       const notified = data?.notifiedCount || 0;
@@ -39,7 +39,7 @@ const NearbyRestaurantsPanel = () => {
       setShowPanel(true);
 
       if (notified > 0) {
-        showSuccess(`SMS sent to ${notified} nearby registered restaurants!`);
+        showSuccess(`SMS and Email sent to ${notified} nearby registered restaurants!`);
       } else {
         showSuccess('Nearby restaurants loaded. No registered restaurants found to notify.');
       }
@@ -101,13 +101,13 @@ const NearbyRestaurantsPanel = () => {
 
         {showPanel && (
           <>
-            {/* SMS Notification Indicator */}
+            {/* SMS & Email Notification Indicator */}
             {notifiedCount > 0 && (
               <div className="sms-notification-indicator">
-                <div className="sms-icon">📱</div>
+                <div className="sms-icon">📱📧</div>
                 <div className="sms-info">
-                  <p className="sms-title">SMS Notifications Sent</p>
-                  <p className="sms-count">Top {notifiedCount} nearby registered restaurants notified via SMS</p>
+                  <p className="sms-title">Notifications Sent</p>
+                  <p className="sms-count">Top {notifiedCount} nearby registered restaurants notified via SMS & Email</p>
                 </div>
                 <div className="sms-checkmark">✅</div>
               </div>
@@ -150,7 +150,7 @@ const NearbyRestaurantsPanel = () => {
                           <div className="cuisine-badge">{restaurant.cuisineType}</div>
                         )}
                         {index < notifiedCount && (
-                          <div className="notified-badge">✅ SMS Sent</div>
+                          <div className="notified-badge">✅ SMS & Email Sent</div>
                         )}
                       </div>
                     </div>
@@ -234,4 +234,5 @@ const NearbyRestaurantsPanel = () => {
 };
 
 export default NearbyRestaurantsPanel;
+
 

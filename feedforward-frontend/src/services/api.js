@@ -75,9 +75,11 @@ api.interceptors.response.use(
       });
     } else if (error.request) {
       // Request was made but no response received
-      console.error('Network error - no response received');
+      console.error('Network error - no response received', error.request);
       return Promise.reject({
-        message: 'Network error. Please check your connection.',
+        message: 'Network error. Please check your connection and ensure the backend server is running.',
+        status: 0,
+        request: error.request
       });
     } else {
       // Something else happened
