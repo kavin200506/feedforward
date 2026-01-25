@@ -62,23 +62,30 @@ public class RequestService {
             throw new BadRequestException("You have already requested this food listing");
         }
 
-        // Validate quantity
-        if (request.getQuantityRequested() > listing.getQuantity()) {
-            throw new BadRequestException("Requested quantity exceeds available quantity");
+        // Validate quantity - must be less than available quantity
+        if (request.getQuantityRequested() >= listing.getQuantity()) {
+            throw new BadRequestException("Requested quantity must be less than available quantity (" + listing.getQuantity() + ")");
         }
 
-        // Create food request
+        // Validate pickup time is in the future
+        if (request.getPickupTime().isBefore(LocalDateTime.now())) {
+            throw new BadRequestException("Pickup time must be in the future");
+        }
+
+        // Create food request and auto-approve it
         FoodRequest foodRequest = FoodRequest.builder()
                 .foodListing(listing)
                 .ngo(ngo)
                 .quantityRequested(request.getQuantityRequested())
                 .urgencyLevel(request.getUrgencyLevel())
                 .notes(request.getNotes())
-                .status(RequestStatus.PENDING)
+                .pickupTime(request.getPickupTime())
+                .status(RequestStatus.APPROVED) // Auto-approve
+                .restaurantResponse("Your request has been automatically approved. Please pick up the food at the specified time.")
                 .build();
 
         foodRequest = requestRepository.save(foodRequest);
-        logger.info("Food request created with ID: {}", foodRequest.getRequestId());
+        logger.info("Food request created and auto-approved with ID: {}", foodRequest.getRequestId());
 
         return buildRequestResponse(foodRequest);
     }

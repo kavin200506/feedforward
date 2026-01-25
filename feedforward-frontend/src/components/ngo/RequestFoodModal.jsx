@@ -16,6 +16,7 @@ const RequestFoodModal = ({ isOpen, onClose, food, onSuccess }) => {
     quantityRequested: '',
     urgencyLevel: 'MEDIUM',
     notes: '',
+    pickupTime: '',
   });
 
   const [loading, setLoading] = useState(false);
@@ -37,8 +38,18 @@ const RequestFoodModal = ({ isOpen, onClose, food, onSuccess }) => {
 
     if (!formData.quantityRequested || formData.quantityRequested <= 0) {
       newErrors.quantityRequested = 'Quantity is required';
-    } else if (formData.quantityRequested > food.quantity) {
-      newErrors.quantityRequested = `Cannot exceed available quantity (${food.quantity})`;
+    } else if (formData.quantityRequested >= food.quantity) {
+      newErrors.quantityRequested = `Quantity must be less than available quantity (${food.quantity})`;
+    }
+
+    if (!formData.pickupTime) {
+      newErrors.pickupTime = 'Pickup time is required';
+    } else {
+      const pickupDate = new Date(formData.pickupTime);
+      const now = new Date();
+      if (pickupDate <= now) {
+        newErrors.pickupTime = 'Pickup time must be in the future';
+      }
     }
 
     setErrors(newErrors);
@@ -58,9 +69,10 @@ const RequestFoodModal = ({ isOpen, onClose, food, onSuccess }) => {
         quantityRequested,
         urgencyLevel: formData.urgencyLevel,
         notes: formData.notes,
+        pickupTime: formData.pickupTime,
       });
 
-      showSuccess('Request sent successfully! The restaurant will review it shortly.');
+      showSuccess('Request sent successfully! Your request has been automatically approved.');
       
       // Pass requested quantity to parent for optimistic update
       if (onSuccess) {
@@ -85,6 +97,7 @@ const RequestFoodModal = ({ isOpen, onClose, food, onSuccess }) => {
       quantityRequested: '',
       urgencyLevel: 'MEDIUM',
       notes: '',
+      pickupTime: '',
     });
     setErrors({});
     onClose();
@@ -136,7 +149,7 @@ const RequestFoodModal = ({ isOpen, onClose, food, onSuccess }) => {
             error={errors.quantityRequested}
             helperText={`Based on ${user?.beneficiariesCount || 100} beneficiaries, we suggest: ${suggestedQuantity} ${food.unit}`}
             min={1}
-            max={food.quantity}
+            max={food.quantity - 1}
             required
           />
 
@@ -215,6 +228,18 @@ const RequestFoodModal = ({ isOpen, onClose, food, onSuccess }) => {
             </div>
           </div>
 
+          <Input
+            label="Pickup Time"
+            type="datetime-local"
+            name="pickupTime"
+            value={formData.pickupTime}
+            onChange={handleChange}
+            error={errors.pickupTime}
+            min={new Date().toISOString().slice(0, 16)}
+            required
+            helperText="Select when you plan to pick up the food"
+          />
+
           <div className="input-wrapper">
             <label className="input-label">Additional Notes (Optional)</label>
             <textarea
@@ -236,8 +261,7 @@ const RequestFoodModal = ({ isOpen, onClose, food, onSuccess }) => {
           <div className="info-box-content">
             <strong>What happens next?</strong>
             <p>
-              The restaurant will review your request and respond shortly. 
-              You'll be notified via the dashboard once approved.
+              Your request will be automatically approved. Make sure to pick up the food at the specified time.
             </p>
           </div>
         </div>
