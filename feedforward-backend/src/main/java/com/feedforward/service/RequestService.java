@@ -85,7 +85,12 @@ public class RequestService {
                 .build();
 
         foodRequest = requestRepository.save(foodRequest);
-        logger.info("Food request created and auto-approved with ID: {}", foodRequest.getRequestId());
+        
+        // Update listing status to RESERVED when request is auto-approved
+        listing.setStatus(ListingStatus.RESERVED);
+        listingRepository.save(listing);
+        
+        logger.info("Food request created and auto-approved with ID: {}. Listing status updated to RESERVED.", foodRequest.getRequestId());
 
         return buildRequestResponse(foodRequest);
     }
