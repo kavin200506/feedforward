@@ -26,10 +26,12 @@ const RequestsPanel = ({ requests, onUpdate, onRequestUpdate }) => {
   };
 
   const getStatusColor = (status) => {
+    // Use APPROVED color for both PENDING and PICKED_UP statuses
+    if (status === 'PENDING' || status === 'PICKED_UP') {
+      return '#2196F3'; // APPROVED color
+    }
     const colors = {
-      PENDING: '#FF9800',
       APPROVED: '#2196F3',
-      PICKED_UP: '#9C27B0',
       COMPLETED: '#4CAF50',
       REJECTED: '#F44336',
       CANCELLED: '#9E9E9E',
@@ -38,10 +40,12 @@ const RequestsPanel = ({ requests, onUpdate, onRequestUpdate }) => {
   };
 
   const getStatusLabel = (status) => {
+    // Show "APPROVED" for both PENDING and PICKED_UP statuses
+    if (status === 'PENDING' || status === 'PICKED_UP') {
+      return 'APPROVED';
+    }
     const labels = {
-      PENDING: 'PENDING',
       APPROVED: 'APPROVED',
-      PICKED_UP: 'PICKED UP',
       COMPLETED: 'COMPLETED',
       REJECTED: 'REJECTED',
       CANCELLED: 'CANCELLED',
@@ -103,7 +107,7 @@ const RequestsPanel = ({ requests, onUpdate, onRequestUpdate }) => {
               </div>
 
               <div className="request-actions">
-                {request.status === 'APPROVED' && (
+                {(request.status === 'APPROVED' || request.status === 'PENDING') && (
                   <div className="request-status-info">
                     <p style={{ color: '#2196F3', fontSize: '0.9rem', margin: 0, fontWeight: '600' }}>
                       ✅ Auto-Approved - NGO will pick up at scheduled time
@@ -117,9 +121,19 @@ const RequestsPanel = ({ requests, onUpdate, onRequestUpdate }) => {
                 )}
                 {request.status === 'PICKED_UP' && (
                   <div className="request-status-info">
-                    <p style={{ color: '#9C27B0', fontSize: '0.9rem', margin: 0, fontWeight: '600' }}>
-                      ✅ Accepted - NGO has picked up the food
+                    <p style={{ color: '#2196F3', fontSize: '0.9rem', margin: 0, fontWeight: '600' }}>
+                      ✅ Auto-Approved - NGO will pick up at scheduled time
                     </p>
+                    {request.pickupTime && (
+                      <p style={{ color: '#666', fontSize: '0.85rem', margin: '0.25rem 0 0 0' }}>
+                        Scheduled pickup: {formatDateTime(request.pickupTime)}
+                      </p>
+                    )}
+                    {request.pickedUpAt && (
+                      <p style={{ color: '#666', fontSize: '0.85rem', margin: '0.5rem 0 0 0' }}>
+                        ✅ Accepted - NGO has picked up the food
+                      </p>
+                    )}
                     {request.pickedUpAt && (
                       <p style={{ color: '#666', fontSize: '0.85rem', margin: '0.25rem 0 0 0' }}>
                         Picked up at: {formatDateTime(request.pickedUpAt)}

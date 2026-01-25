@@ -15,6 +15,7 @@ const BrowseFoodPage = () => {
 
   const [foodListings, setFoodListings] = useState([]);
   const [nearbyRestaurants, setNearbyRestaurants] = useState([]);
+  const [myRequests, setMyRequests] = useState([]); // Store NGO's requests to filter out
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     distance: 10,
@@ -38,8 +39,29 @@ const BrowseFoodPage = () => {
   const debouncedSearch = useDebounce(searchQuery, 300);
 
   useEffect(() => {
+    fetchMyRequests();
+  }, []);
+
+  useEffect(() => {
     fetchFoodListings();
   }, [filters, debouncedSearch]);
+
+  const fetchMyRequests = async () => {
+    try {
+      const requests = await ngoService.getMyRequests();
+      // Get all listing IDs that have been requested (any status except CANCELLED)
+      const requestedListingIds = [
+        ...(requests.activeRequests || []),
+        ...(requests.completedRequests || [])
+      ]
+        .filter(req => req.status !== 'CANCELLED')
+        .map(req => req.listingId);
+      setMyRequests(requestedListingIds);
+    } catch (error) {
+      console.error('Failed to fetch requests:', error);
+      // Don't show error, just continue without filtering
+    }
+  };
 
   const fetchFoodListings = async () => {
     setLoading(true);
@@ -63,7 +85,14 @@ const BrowseFoodPage = () => {
 
       // Use new endpoint that includes nearby restaurants
       const response = await ngoService.searchFoodWithNearby(params);
-      setFoodListings(response.registeredResults || []);
+      const allListings = response.registeredResults || [];
+      
+      // Filter out listings that the NGO has already requested
+      const filteredListings = allListings.filter(
+        listing => !myRequests.includes(listing.listingId)
+      );
+      
+      setFoodListings(filteredListings);
       setNearbyRestaurants(response.nearbyRestaurants || []);
     } catch (error) {
       showError('Failed to load food listings');
@@ -86,7 +115,14 @@ const BrowseFoodPage = () => {
           search: debouncedSearch,
         };
         const fallbackResponse = await ngoService.searchFood(fallbackParams);
-        setFoodListings(fallbackResponse.foodListings || []);
+        const allListings = fallbackResponse.foodListings || [];
+        
+        // Filter out listings that the NGO has already requested
+        const filteredListings = allListings.filter(
+          listing => !myRequests.includes(listing.listingId)
+        );
+        
+        setFoodListings(filteredListings);
         setNearbyRestaurants([]);
       } catch (fallbackError) {
         showError('Failed to load food listings');
@@ -107,17 +143,16 @@ const BrowseFoodPage = () => {
 
   const handleRequestSuccess = (quantityRequested) => {
     setShowRequestModal(false);
-    // Optimistically update the food listing quantity if request was successful
-    if (selectedFood && quantityRequested) {
-      setFoodListings(prev => prev.map(food => 
-        food.listingId === selectedFood.listingId
-          ? { ...food, quantity: Math.max(0, food.quantity - quantityRequested) }
-          : food
-      ));
+    // Add the listing ID to myRequests to filter it out
+    if (selectedFood) {
+      setMyRequests(prev => [...prev, selectedFood.listingId]);
+      // Remove the listing from the displayed list immediately
+      setFoodListings(prev => prev.filter(food => food.listingId !== selectedFood.listingId));
     }
     setSelectedFood(null);
-    // Refresh after a short delay to get accurate data
+    // Refresh requests and food listings after a short delay
     setTimeout(() => {
+      fetchMyRequests();
       fetchFoodListings();
     }, 1000);
   };
