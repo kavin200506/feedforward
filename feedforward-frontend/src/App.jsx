@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Footer } from './components/common';
 import Navbar from './components/common/Navbar';
 import ProtectedRoute from './components/common/ProtectedRoute';
-import FloatingChatbot from './components/chatbot/FloatingChatbot';
+
 import { USER_ROLES } from './utils/constants';
 
 // Pages
@@ -111,11 +111,7 @@ function App() {
           </Routes>
         </main>
         <Footer />
-<<<<<<< HEAD
-        <FloatingChatbot />
-=======
         <Chatbot />
->>>>>>> 6790cb4 (partial food allocation done)
       </div>
     </Router>
   );
