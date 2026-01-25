@@ -40,7 +40,7 @@ public class FoodListing extends BaseEntity {
 
     @NotNull(message = "Category is required")
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 50)
+    @Column(nullable = false, length = 100)
     private FoodCategory category;
 
     @NotNull(message = "Quantity is required")

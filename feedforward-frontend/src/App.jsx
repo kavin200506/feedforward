@@ -28,6 +28,7 @@ import ImpactPage from './pages/ImpactPage';
 
 // Route Components
 import DefaultRoute from './components/DefaultRoute';
+import Chatbot from './components/chatbot/Chatbot';
 
 import './App.css';
 
@@ -110,7 +111,11 @@ function App() {
           </Routes>
         </main>
         <Footer />
+<<<<<<< HEAD
         <FloatingChatbot />
+=======
+        <Chatbot />
+>>>>>>> 6790cb4 (partial food allocation done)
       </div>
     </Router>
   );

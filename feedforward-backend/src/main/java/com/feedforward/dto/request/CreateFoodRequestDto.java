@@ -21,6 +21,9 @@ public class CreateFoodRequestDto {
     @NotNull(message = "Urgency level is required")
     private UrgencyLevel urgencyLevel;
 
+    @NotNull(message = "Pickup time is required")
+    private java.time.LocalDateTime pickupTime;
+
     private String notes;
 }
 
