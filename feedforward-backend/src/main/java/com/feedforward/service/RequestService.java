@@ -67,12 +67,21 @@ public class RequestService {
             throw new BadRequestException("Requested quantity exceeds available quantity");
         }
 
+        // Validate pickup time
+        if (request.getPickupTime().isBefore(LocalDateTime.now())) {
+            throw new BadRequestException("Pickup time cannot be in the past");
+        }
+        if (request.getPickupTime().isAfter(listing.getExpiryTime())) {
+            throw new BadRequestException("Pickup time cannot be after food expiry time");
+        }
+
         // Create food request
         FoodRequest foodRequest = FoodRequest.builder()
                 .foodListing(listing)
                 .ngo(ngo)
                 .quantityRequested(request.getQuantityRequested())
                 .urgencyLevel(request.getUrgencyLevel())
+                .pickupTime(request.getPickupTime())
                 .notes(request.getNotes())
                 .status(RequestStatus.PENDING)
                 .build();
@@ -199,15 +208,36 @@ public class RequestService {
             throw new BadRequestException("Pickup time cannot be after food expiry time");
         }
 
-        // Approve request
-        request.approve(dto.getResponse(), dto.getPickupTime());
+        // Lock and retrieve listing to prevent race conditions
+        FoodListing listing = listingRepository.findByIdWithLock(request.getFoodListing().getListingId())
+                .orElseThrow(() -> new ResourceNotFoundException("Food Listing not found"));
+
+        if (!listing.isAvailable()) {
+            throw new InvalidOperationException("Food listing is no longer available");
+        }
+
+        // Check availability
+        if (listing.getQuantity() < request.getQuantityRequested()) {
+            throw new InvalidOperationException("Insufficient quantity available. Current: " + listing.getQuantity());
+        }
+
+        // Deduct quantity
+        listing.setQuantity(listing.getQuantity() - request.getQuantityRequested());
 
         // Update listing status
-        request.getFoodListing().setStatus(ListingStatus.RESERVED);
-        listingRepository.save(request.getFoodListing());
+        if (listing.getQuantity() == 0) {
+            listing.setStatus(ListingStatus.COMPLETED);
+        } else {
+            // Ensure it remains AVAILABLE if quantity > 0 (though it should already be available)
+            listing.setStatus(ListingStatus.AVAILABLE);
+        }
+        
+        listingRepository.save(listing);
 
+        // Approve request
+        request.approve(dto.getResponse(), dto.getPickupTime());
         request = requestRepository.save(request);
-        logger.info("Request {} approved", requestId);
+        logger.info("Request {} approved, listing quantity updated to {}", requestId, listing.getQuantity());
 
         return buildRequestResponse(request);
     }
@@ -343,10 +373,20 @@ public class RequestService {
             throw new InvalidOperationException("Cannot cancel request with status: " + request.getStatus());
         }
 
-        // If request was approved, make listing available again
+        // If request was approved, restore quantity to listing
         if (request.getStatus() == RequestStatus.APPROVED) {
-            request.getFoodListing().setStatus(ListingStatus.AVAILABLE);
-            listingRepository.save(request.getFoodListing());
+            FoodListing listing = listingRepository.findByIdWithLock(request.getFoodListing().getListingId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Food listing not found"));
+
+            listing.setQuantity(listing.getQuantity() + request.getQuantityRequested());
+            
+            // If it was completed/expired/reserved, make it available again since we have quantity now
+            // But only if it hasn't expired in the meantime
+            if (!listing.isExpired()) {
+                listing.setStatus(ListingStatus.AVAILABLE);
+            }
+            
+            listingRepository.save(listing);
         }
 
         // Cancel request

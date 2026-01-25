@@ -12,6 +12,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -20,6 +22,10 @@ import java.util.Optional;
 
 @Repository
 public interface FoodListingRepository extends JpaRepository<FoodListing, Long> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT fl FROM FoodListing fl WHERE fl.listingId = :id")
+    Optional<FoodListing> findByIdWithLock(@Param("id") Long id);
 
     // Find listing with restaurant details
     @Query("SELECT fl FROM FoodListing fl JOIN FETCH fl.restaurant r JOIN FETCH r.user " +

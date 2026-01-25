@@ -16,6 +16,7 @@ const RequestFoodModal = ({ isOpen, onClose, food, onSuccess }) => {
     quantityRequested: '',
     urgencyLevel: 'MEDIUM',
     notes: '',
+    pickupTime: '',
   });
 
   const [loading, setLoading] = useState(false);
@@ -41,6 +42,20 @@ const RequestFoodModal = ({ isOpen, onClose, food, onSuccess }) => {
       newErrors.quantityRequested = `Cannot exceed available quantity (${food.quantity})`;
     }
 
+    if (!formData.pickupTime) {
+      newErrors.pickupTime = 'Pickup time is required';
+    } else {
+        const selectedTime = new Date(formData.pickupTime);
+        const expiryTime = new Date(food.expiryTime);
+        const now = new Date();
+
+        if (selectedTime < now) {
+            newErrors.pickupTime = 'Pickup time cannot be in the past';
+        } else if (selectedTime > expiryTime) {
+            newErrors.pickupTime = 'Pickup time cannot be after expiry';
+        }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -57,6 +72,7 @@ const RequestFoodModal = ({ isOpen, onClose, food, onSuccess }) => {
         listingId: food.listingId,
         quantityRequested,
         urgencyLevel: formData.urgencyLevel,
+        pickupTime: formData.pickupTime,
         notes: formData.notes,
       });
 
@@ -85,6 +101,7 @@ const RequestFoodModal = ({ isOpen, onClose, food, onSuccess }) => {
       quantityRequested: '',
       urgencyLevel: 'MEDIUM',
       notes: '',
+      pickupTime: '',
     });
     setErrors({});
     onClose();
@@ -124,111 +141,49 @@ const RequestFoodModal = ({ isOpen, onClose, food, onSuccess }) => {
           </div>
         </div>
 
-        {/* Request Form */}
-        <div className="form-section">
-          <Input
-            label="Quantity Needed"
-            type="number"
-            name="quantityRequested"
-            placeholder="Enter servings needed"
-            value={formData.quantityRequested}
-            onChange={handleChange}
-            error={errors.quantityRequested}
-            helperText={`Based on ${user?.beneficiariesCount || 100} beneficiaries, we suggest: ${suggestedQuantity} ${food.unit}`}
-            min={1}
-            max={food.quantity}
-            required
-          />
 
           <div className="input-wrapper">
             <label className="input-label">
-              Urgency Level <span className="input-required">*</span>
+              Quantity <span className="input-required">*</span>
             </label>
-            <div className="urgency-options">
-              <label className={`urgency-option ${formData.urgencyLevel === 'LOW' ? 'selected' : ''}`}>
-                <input
-                  type="radio"
-                  name="urgencyLevel"
-                  value="LOW"
-                  checked={formData.urgencyLevel === 'LOW'}
-                  onChange={handleChange}
-                />
-                <div className="urgency-content">
-                  <span className="urgency-icon">⚪</span>
-                  <div>
-                    <div className="urgency-label">Low</div>
-                    <div className="urgency-desc">Can pick up anytime</div>
-                  </div>
-                </div>
-              </label>
-
-              <label className={`urgency-option ${formData.urgencyLevel === 'MEDIUM' ? 'selected' : ''}`}>
-                <input
-                  type="radio"
-                  name="urgencyLevel"
-                  value="MEDIUM"
-                  checked={formData.urgencyLevel === 'MEDIUM'}
-                  onChange={handleChange}
-                />
-                <div className="urgency-content">
-                  <span className="urgency-icon">🟡</span>
-                  <div>
-                    <div className="urgency-label">Medium</div>
-                    <div className="urgency-desc">Within 2 hours</div>
-                  </div>
-                </div>
-              </label>
-
-              <label className={`urgency-option ${formData.urgencyLevel === 'HIGH' ? 'selected' : ''}`}>
-                <input
-                  type="radio"
-                  name="urgencyLevel"
-                  value="HIGH"
-                  checked={formData.urgencyLevel === 'HIGH'}
-                  onChange={handleChange}
-                />
-                <div className="urgency-content">
-                  <span className="urgency-icon">🟠</span>
-                  <div>
-                    <div className="urgency-label">High</div>
-                    <div className="urgency-desc">Within 1 hour</div>
-                  </div>
-                </div>
-              </label>
-
-              <label className={`urgency-option ${formData.urgencyLevel === 'CRITICAL' ? 'selected' : ''}`}>
-                <input
-                  type="radio"
-                  name="urgencyLevel"
-                  value="CRITICAL"
-                  checked={formData.urgencyLevel === 'CRITICAL'}
-                  onChange={handleChange}
-                />
-                <div className="urgency-content">
-                  <span className="urgency-icon">🔴</span>
-                  <div>
-                    <div className="urgency-label">Critical</div>
-                    <div className="urgency-desc">Immediately</div>
-                  </div>
-                </div>
-              </label>
-            </div>
+            <Input
+              type="number"
+              name="quantityRequested"
+              value={formData.quantityRequested}
+              onChange={handleChange}
+              error={errors.quantityRequested}
+              min="1"
+              max={food.quantity}
+              placeholder={`Suggested: ${suggestedQuantity}`}
+              required
+            />
           </div>
 
           <div className="input-wrapper">
-            <label className="input-label">Additional Notes (Optional)</label>
-            <textarea
-              name="notes"
-              className="input textarea"
-              placeholder="Any specific instructions or requirements..."
-              value={formData.notes}
+            <label className="input-label">
+              Preferred Pickup Time <span className="input-required">*</span>
+            </label>
+            <Input
+              type="datetime-local"
+              name="pickupTime"
+              value={formData.pickupTime}
               onChange={handleChange}
-              rows={3}
-              maxLength={250}
+              error={errors.pickupTime}
+              min={new Date().toISOString().slice(0, 16)}
+              max={food.expiryTime}
+              required
             />
-            <span className="char-count">{formData.notes.length}/250 characters</span>
+            <div className="estimate-details" style={{ marginTop: '0.5rem' }}>
+              <div className="estimate-item">
+                <FiClock size={16} />
+                <span>Expires: {new Date(food.expiryTime).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}</span>
+              </div>
+              <div className="estimate-item">
+                <FiMapPin size={16} />
+                <span>{food.distance} km from you</span>
+              </div>
+            </div>
           </div>
-        </div>
 
         {/* Info Box */}
         <div className="info-box">
@@ -236,31 +191,8 @@ const RequestFoodModal = ({ isOpen, onClose, food, onSuccess }) => {
           <div className="info-box-content">
             <strong>What happens next?</strong>
             <p>
-              The restaurant will review your request and respond shortly. 
-              You'll be notified via the dashboard once approved.
+              The restaurant will review your request. Since you've provided a pickup time, approval will be faster!
             </p>
-          </div>
-        </div>
-
-        {/* Pickup Estimate */}
-        <div className="pickup-estimate">
-          <div className="estimate-icon">🚗</div>
-          <div className="estimate-content">
-            <div className="estimate-label">Estimated Pickup Details:</div>
-            <div className="estimate-details">
-              <div className="estimate-item">
-                <FiClock size={16} />
-                <span>~{estimatedPickupTime} (approx)</span>
-              </div>
-              <div className="estimate-item">
-                <FiMapPin size={16} />
-                <span>{food.distance} km • ~{Math.ceil(food.distance * 3)} min travel</span>
-              </div>
-              <div className="estimate-item">
-                <FiPhone size={16} />
-                <span>Contact details provided after approval</span>
-              </div>
-            </div>
           </div>
         </div>
 
