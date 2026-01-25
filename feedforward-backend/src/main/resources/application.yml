@@ -3,9 +3,11 @@ spring:
     name: feedforward-backend
   
   datasource:
-    url: jdbc:mysql://localhost:3306/feedforward_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=Asia/Kolkata&allowPublicKeyRetrieval=true
-    username: root
-    password: Root@1234
+    # Railway provides MYSQL_URL - if set, it will be converted to JDBC format in FeedForwardApplication
+    # Otherwise, use individual components (MYSQLHOST, MYSQLPORT, etc.) for local development
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://${MYSQLHOST:localhost}:${MYSQLPORT:3306}/${MYSQLDATABASE:feedforward_db}?createDatabaseIfNotExist=true&useSSL=${MYSQL_USE_SSL:false}&requireSSL=${MYSQL_REQUIRE_SSL:false}&serverTimezone=UTC&allowPublicKeyRetrieval=true}
+    username: ${MYSQLUSER:root}
+    password: ${MYSQLPASSWORD:Root@1234}
     driver-class-name: com.mysql.cj.jdbc.Driver
   
   jpa:
