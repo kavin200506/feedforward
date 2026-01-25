@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Modal, Input, Button, Pagination } from '../common';
 import { foodListingService } from '../../services';
 import { useNotification } from '../../context/NotificationContext';
-import { FOOD_CATEGORIES, FOOD_UNITS, DIETARY_OPTIONS } from '../../utils/constants';
+import { FOOD_CATEGORIES, FOOD_UNITS, DIETARY_TYPES, ALLERGEN_OPTIONS } from '../../utils/constants';
 import { calculateUrgency } from '../../utils/helpers';
 import './AddFoodModal.css';
 
@@ -13,12 +13,13 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
 
   const [formData, setFormData] = useState({
     foodName: '',
-    category: '',
+    category: [], // Changed to array for multi-select
     quantity: '',
     unit: 'Servings',
     preparedTime: '',
     expiryTime: '',
-    dietaryInfo: [],
+    dietaryType: '', // Required - single choice (radio)
+    allergens: [], // Optional - multi-select (checkboxes)
     description: '',
   });
 
@@ -57,13 +58,37 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
     }
   };
 
-  const handleCheckboxChange = (value) => {
+  // Handle category multi-select
+  const handleCategoryChange = (e) => {
+    const { value, checked } = e.target;
     setFormData((prev) => {
-      const current = prev.dietaryInfo || [];
+      const current = prev.category || [];
+      const updated = checked
+        ? [...current, value]
+        : current.filter((item) => item !== value);
+      return { ...prev, category: updated };
+    });
+    if (errors.category) {
+      setErrors((prev) => ({ ...prev, category: '' }));
+    }
+  };
+
+  // Handle dietary type (radio - single choice)
+  const handleDietaryTypeChange = (value) => {
+    setFormData((prev) => ({ ...prev, dietaryType: value }));
+    if (errors.dietaryType) {
+      setErrors((prev) => ({ ...prev, dietaryType: '' }));
+    }
+  };
+
+  // Handle allergens (checkboxes - multi-select)
+  const handleAllergenChange = (value) => {
+    setFormData((prev) => {
+      const current = prev.allergens || [];
       const updated = current.includes(value)
         ? current.filter((item) => item !== value)
         : [...current, value];
-      return { ...prev, dietaryInfo: updated };
+      return { ...prev, allergens: updated };
     });
   };
 
@@ -71,10 +96,13 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
     const newErrors = {};
     
     if (!formData.foodName) newErrors.foodName = 'Food name is required';
-    if (!formData.category) newErrors.category = 'Category is required';
+    if (!formData.category || formData.category.length === 0) {
+      newErrors.category = 'At least one category is required';
+    }
     if (!formData.quantity || formData.quantity <= 0) newErrors.quantity = 'Valid quantity is required';
     if (!formData.preparedTime) newErrors.preparedTime = 'Prepared time is required';
     if (!formData.expiryTime) newErrors.expiryTime = 'Expiry time is required';
+    if (!formData.dietaryType) newErrors.dietaryType = 'Dietary type is required';
     
     // Validate expiry time is in future
     const now = new Date();
@@ -100,14 +128,26 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
 
     setLoading(true);
     try {
+      // Format dietary info: combine dietary type and allergens
+      const dietaryInfoParts = [formData.dietaryType];
+      if (formData.allergens && formData.allergens.length > 0) {
+        dietaryInfoParts.push(...formData.allergens);
+      }
+      
+      // For category, use first category if backend expects single value
+      // Or send as comma-separated if backend supports multiple
+      const categoryValue = Array.isArray(formData.category) 
+        ? formData.category[0] // Use first category for now (backend may need update)
+        : formData.category;
+
       const payload = {
         foodName: formData.foodName,
-        category: formData.category,
+        category: categoryValue,
         quantity: parseInt(formData.quantity),
         unit: formData.unit,
         preparedTime: formData.preparedTime,
         expiryTime: formData.expiryTime,
-        dietaryInfo: formData.dietaryInfo.join(', '),
+        dietaryInfo: dietaryInfoParts.join(', '),
         description: formData.description,
       };
 
@@ -183,12 +223,13 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
   const handleClose = () => {
     setFormData({
       foodName: '',
-      category: '',
+      category: [],
       quantity: '',
       unit: 'Servings',
       preparedTime: '',
       expiryTime: '',
-      dietaryInfo: [],
+      dietaryType: '',
+      allergens: [],
       description: '',
     });
     setErrors({});
@@ -205,12 +246,13 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
     // Reset all state
     setFormData({
       foodName: '',
-      category: '',
+      category: [],
       quantity: '',
       unit: 'Servings',
       preparedTime: '',
       expiryTime: '',
-      dietaryInfo: [],
+      dietaryType: '',
+      allergens: [],
       description: '',
     });
     setErrors({});
@@ -417,7 +459,7 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
             <Input
               label="Food Name"
               name="foodName"
-              placeholder="e.g., Rice & Dal, Bread Loaves"
+              placeholder="e.g., Vegetable Biryani, Chapati, Dal Curry"
               value={formData.foodName}
               onChange={handleChange}
               error={errors.foodName}
@@ -427,21 +469,23 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
             <div className="input-wrapper">
               <label className="input-label">
                 Category <span className="input-required">*</span>
+                <span className="input-helper-text">(Select all that apply)</span>
               </label>
-              <select
-                name="category"
-                className="input"
-                value={formData.category}
-                onChange={handleChange}
-                required
-              >
-                <option value="">Select category</option>
-                {FOOD_CATEGORIES.map((cat) => (
-                  <option key={cat.value} value={cat.value}>
-                    {cat.label}
-                  </option>
-                ))}
-              </select>
+              <div className="checkbox-group category-group">
+                <div className="checkbox-options">
+                  {FOOD_CATEGORIES.map((cat) => (
+                    <label key={cat.value} className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        value={cat.value}
+                        checked={formData.category.includes(cat.value)}
+                        onChange={handleCategoryChange}
+                      />
+                      <span>{cat.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
               {errors.category && (
                 <span className="input-error-message shake">{errors.category}</span>
               )}
@@ -511,17 +555,51 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
         <div className="form-section">
           <h3 className="section-title">Additional Information</h3>
 
+          {/* Dietary Type - Required - Radio Buttons */}
+          <div className="radio-group">
+            <label className="input-label">
+              Dietary Type <span className="input-required">*</span>
+            </label>
+            <div className="radio-options">
+              {DIETARY_TYPES.map((type) => (
+                <label key={type.value} className="radio-label">
+                  <input
+                    type="radio"
+                    name="dietaryType"
+                    value={type.value}
+                    checked={formData.dietaryType === type.value}
+                    onChange={() => handleDietaryTypeChange(type.value)}
+                  />
+                  <div className="radio-content">
+                    <span className="radio-main">{type.label}</span>
+                    <span className="radio-description">{type.description}</span>
+                  </div>
+                </label>
+              ))}
+            </div>
+            {errors.dietaryType && (
+              <span className="input-error-message shake">{errors.dietaryType}</span>
+            )}
+          </div>
+
+          {/* Allergens & Dietary Properties - Optional - Checkboxes */}
           <div className="checkbox-group">
-            <label className="input-label">Dietary Information</label>
+            <label className="input-label">
+              Allergen & Dietary Information
+              <span className="input-helper-text">(Select all that apply)</span>
+            </label>
             <div className="checkbox-options">
-              {DIETARY_OPTIONS.map((option) => (
+              {ALLERGEN_OPTIONS.map((option) => (
                 <label key={option.value} className="checkbox-label">
                   <input
                     type="checkbox"
-                    checked={formData.dietaryInfo.includes(option.value)}
-                    onChange={() => handleCheckboxChange(option.value)}
+                    checked={formData.allergens.includes(option.value)}
+                    onChange={() => handleAllergenChange(option.value)}
                   />
-                  <span>{option.label}</span>
+                  <div className="checkbox-content">
+                    <span className="checkbox-main">{option.label}</span>
+                    <span className="checkbox-description">{option.description}</span>
+                  </div>
                 </label>
               ))}
             </div>

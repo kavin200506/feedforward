@@ -2,10 +2,12 @@ package com.feedforward.enums;
 
 public enum FoodCategory {
     COOKED_RICE("Cooked Rice", "🍚"),
+    CURRIES("Curries & Gravies", "🍛"),
     VEGETABLES("Vegetables", "🥗"),
-    BREAD("Bread", "🍞"),
+    BREAD("Bread & Roti", "🍞"),
     PROTEINS("Proteins", "🍗"),
-    SWEETS("Sweets", "🍰"),
+    MIXED_MEALS("Mixed Meals", "🥘"),
+    SWEETS("Sweets & Desserts", "🍰"),
     FRUITS("Fruits", "🍎"),
     BEVERAGES("Beverages", "🥤"),
     SNACKS("Snacks", "🍿"),
