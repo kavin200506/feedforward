@@ -4,6 +4,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { Card, Button, Badge, Skeleton } from '../../components/common';
 import { FiMapPin, FiPhone, FiClock, FiCheckCircle } from 'react-icons/fi';
 import { formatDateTime, getStatusColor } from '../../utils/helpers';
+import NearbyRestaurantsPanel from '../../components/ngo/NearbyRestaurantsPanel';
 import './NgoRequests.css';
 
 const NgoRequests = () => {
@@ -149,6 +150,9 @@ const NgoRequests = () => {
             <p className="page-subtitle">Track and manage your food requests</p>
           </div>
         </div>
+
+        {/* Nearby Restaurants Panel */}
+        <NearbyRestaurantsPanel />
 
         {/* Tabs */}
         <div className="requests-tabs">
