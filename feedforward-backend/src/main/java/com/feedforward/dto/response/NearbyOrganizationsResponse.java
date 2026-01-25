@@ -17,3 +17,5 @@ public class NearbyOrganizationsResponse {
     private Integer notifiedCount;
 }
 
+
+

@@ -20,3 +20,5 @@ public class RestaurantWithContactResponse {
     private Boolean isRegistered;
 }
 
+
+

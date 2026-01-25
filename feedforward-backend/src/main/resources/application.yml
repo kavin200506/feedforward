@@ -49,6 +49,12 @@ logging:
     com.feedforward: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+  file:
+    name: logs/spring.log
+    path: logs
+  pattern:
+    file: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    console: "%d{HH:mm:ss} %-5level %logger{36} - %msg%n"
 
 # Google APIs (optional)
 # Set env var GOOGLE_PLACES_API_KEY to enable nearby unregistered NGO lookup via Google Places.
@@ -58,13 +64,25 @@ google:
     nearby-search-url: https://maps.googleapis.com/maps/api/place/nearbysearch/json
     radius-meters: 5000
 
-# Fast2SMS Configuration
+# Fast2SMS Configuration (Legacy - kept for backward compatibility)
 fast2sms:
   api:
-    key: 5MPNAo2EIG37FqlzCwjvegfcOT1KX8ZUdRWtLmB6an9Yp4QbViEgksGJBhIojRFW3TQwAut4i50OZxX8
+    key: ${FAST2SMS_API_KEY:5MPNAo2EIG37FqlzCwjvegfcOT1KX8ZUdRWtLmB6an9Yp4QbViEgksGJBhIojRFW3TQwAut4i50OZxX8}
     url: https://www.fast2sms.com/dev/bulkV2
+  mock:
+    enabled: ${FAST2SMS_MOCK_ENABLED:false}
   sender:
     id: FDFWRD
+
+# Twilio SMS Configuration
+twilio:
+  account:
+    sid: ${TWILIO_ACCOUNT_SID:}
+  auth:
+    token: ${TWILIO_AUTH_TOKEN:}
+  phone:
+    number: ${TWILIO_PHONE_NUMBER:}
+  enabled: ${TWILIO_ENABLED:true}
 
 # App Configuration
 app:

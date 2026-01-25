@@ -12,3 +12,5 @@ public class UrgentNeedRequest {
     private String foodPreference; // VEGETARIAN, NON_VEG, ALL
 }
 
+
+

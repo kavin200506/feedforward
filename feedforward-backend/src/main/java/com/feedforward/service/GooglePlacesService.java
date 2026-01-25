@@ -134,20 +134,15 @@ public class GooglePlacesService {
                 .sorted(Comparator.comparingDouble(p -> p.getDistanceKm() != null ? p.getDistanceKm() : Double.MAX_VALUE))
                 .toList();
 
-        // Fetch phone numbers for top 5 places using Place Details API
-        // Limit to top 5 to avoid excessive API calls
-        List<NearbyNgoPlaceResponse> top5Places = sortedPlaces.stream()
-                .limit(5)
+        // Fetch phone numbers for top 10 places using Place Details API
+        // Limit to top 10 to avoid excessive API calls (10 API calls max)
+        List<NearbyNgoPlaceResponse> top10Places = sortedPlaces.stream()
+                .limit(10)
                 .map(this::enrichWithPlaceDetails)
                 .toList();
 
-        // Combine top 5 (with details) + rest (without details)
-        List<NearbyNgoPlaceResponse> result = new ArrayList<>(top5Places);
-        if (sortedPlaces.size() > 5) {
-            result.addAll(sortedPlaces.subList(5, sortedPlaces.size()));
-        }
-
-        return result;
+        // Return top 10 with phone numbers (rest are not enriched to save API calls)
+        return top10Places;
     }
 
     /**

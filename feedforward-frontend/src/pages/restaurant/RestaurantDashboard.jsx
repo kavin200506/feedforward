@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { restaurantService, dashboardService, foodListingService } from '../../services';
-import { Button, Card, Loader } from '../../components/common';
+import { Button, Card, Loader, Pagination } from '../../components/common';
 import AddFoodModal from '../../components/restaurant/AddFoodModal';
 import FoodListingsTable from '../../components/restaurant/FoodListingsTable';
 import RequestsPanel from '../../components/restaurant/RequestsPanel';
@@ -24,6 +24,10 @@ const RestaurantDashboard = () => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  
+  // Pagination state
+  const [listingsPage, setListingsPage] = useState(1);
+  const [listingsPerPage, setListingsPerPage] = useState(10);
 
   useEffect(() => {
     fetchDashboardData();
@@ -61,11 +65,19 @@ const RestaurantDashboard = () => {
     try {
       await foodListingService.deleteAllActiveListings();
       showSuccess('All active listings deleted.');
+      setListingsPage(1);
       fetchDashboardData();
     } catch (e) {
       showError(e?.message || 'Failed to delete active listings');
     }
   };
+
+  // Paginated listings
+  const paginatedListings = useMemo(() => {
+    const start = (listingsPage - 1) * listingsPerPage;
+    const end = start + listingsPerPage;
+    return listings.slice(start, end);
+  }, [listings, listingsPage, listingsPerPage]);
 
   if (loading) {
     return <Loader fullScreen text="Loading dashboard..." />;
@@ -155,10 +167,26 @@ const RestaurantDashboard = () => {
               </div>
             </div>
             {listings.length > 0 ? (
-              <FoodListingsTable 
-                listings={listings.slice(0, 5)} 
-                onUpdate={fetchDashboardData} 
-              />
+              <>
+                <FoodListingsTable 
+                  listings={paginatedListings} 
+                  onUpdate={fetchDashboardData} 
+                />
+                {listings.length > listingsPerPage && (
+                  <Pagination
+                    currentPage={listingsPage}
+                    totalPages={Math.ceil(listings.length / listingsPerPage)}
+                    totalItems={listings.length}
+                    itemsPerPage={listingsPerPage}
+                    onPageChange={setListingsPage}
+                    onItemsPerPageChange={(value) => {
+                      setListingsPerPage(value);
+                      setListingsPage(1);
+                    }}
+                    itemsPerPageOptions={[5, 10, 20, 50]}
+                  />
+                )}
+              </>
             ) : (
               <Card>
                 <div className="empty-state">

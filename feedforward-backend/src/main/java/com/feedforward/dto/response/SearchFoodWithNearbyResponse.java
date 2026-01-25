@@ -23,3 +23,5 @@ public class SearchFoodWithNearbyResponse {
     private Integer totalNearby;
 }
 
+
+

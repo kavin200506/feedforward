@@ -21,3 +21,5 @@ public class NgoWithContactResponse {
     private Boolean isRegistered;
 }
 
+
+

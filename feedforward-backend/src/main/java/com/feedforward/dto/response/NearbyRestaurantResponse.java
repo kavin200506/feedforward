@@ -24,3 +24,5 @@ public class NearbyRestaurantResponse {
     private Boolean isRegistered; // false for unregistered restaurants
 }
 
+
+

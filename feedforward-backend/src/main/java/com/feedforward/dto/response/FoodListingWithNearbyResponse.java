@@ -14,3 +14,5 @@ public class FoodListingWithNearbyResponse {
     private NearbyOrganizationsResponse nearbyOrganizations;
 }
 
+
+

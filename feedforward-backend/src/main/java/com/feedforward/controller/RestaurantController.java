@@ -57,7 +57,7 @@ public class RestaurantController {
 
         int notifiedCount = response.getNearbyOrganizations() != null ? 
                 response.getNearbyOrganizations().getNotifiedCount() : 0;
-        String message = String.format("Food listing added successfully. SMS sent to %d nearby NGOs (top 5).",
+        String message = String.format("Food listing added successfully. SMS sent to %d nearby NGOs (top 10).",
                 notifiedCount);
 
         return ResponseEntity

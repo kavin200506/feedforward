@@ -83,11 +83,11 @@ public class FoodListingService {
         listing = foodListingRepository.save(listing);
         logger.info("Food listing created with ID: {}", listing.getListingId());
 
-        // ✨ Get top 5 registered + top 5 unregistered NGOs and send SMS to top 5 registered
+        // ✨ Get top 10 registered + top 10 unregistered NGOs and send SMS to top 10 registered
         NearbyOrganizationsResponse nearbyOrganizations = null;
         try {
             nearbyOrganizations = notificationService.getAndNotifyNearbyNgos(listing, restaurant);
-            logger.info("SMS notifications sent to {} nearby NGOs (top 5)", nearbyOrganizations.getNotifiedCount());
+            logger.info("SMS notifications sent to {} nearby NGOs (top 10)", nearbyOrganizations.getNotifiedCount());
         } catch (Exception e) {
             // Log error but don't fail the listing creation
             logger.error("Failed to send SMS notifications: {}", e.getMessage(), e);
@@ -149,11 +149,11 @@ public class FoodListingService {
         listing = foodListingRepository.save(listing);
         logger.info("Food listing created with ID: {}", listing.getListingId());
 
-        // ✨ Get top 5 registered + top 5 unregistered NGOs and send SMS to top 5 registered
+        // ✨ Get top 10 registered + top 10 unregistered NGOs and send SMS to top 10 registered
         NearbyOrganizationsResponse nearbyOrganizations = null;
         try {
             nearbyOrganizations = notificationService.getAndNotifyNearbyNgos(listing, restaurant);
-            logger.info("SMS notifications sent to {} nearby NGOs (top 5)", nearbyOrganizations.getNotifiedCount());
+            logger.info("SMS notifications sent to {} nearby NGOs (top 10)", nearbyOrganizations.getNotifiedCount());
         } catch (Exception e) {
             // Log error but don't fail the listing creation
             logger.error("Failed to send SMS notifications: {}", e.getMessage(), e);

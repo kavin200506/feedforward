@@ -145,3 +145,5 @@ const NearbyNgosCard = ({ registeredNgos = [], unregisteredNgos = [] }) => {
 export default NearbyNgosCard;
 
 
+
+

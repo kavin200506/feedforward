@@ -40,3 +40,6 @@ application-local.yml
 application-prod.yml
 
 
+
+### Environment Variables ###
+.env

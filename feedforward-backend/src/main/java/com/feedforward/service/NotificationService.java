@@ -40,7 +40,7 @@ public class NotificationService {
     @Value("${app.name:FeedForward}")
     private String appName;
 
-    private static final int TOP_N = 5; // Top 5 organizations
+    private static final int TOP_N = 10; // Top 10 organizations
 
     /**
      * Notify nearby NGOs when restaurant adds food listing
@@ -150,16 +150,23 @@ public class NotificationService {
     private List<Ngo> findNearbyNgos(double lat, double lng, double radiusKm) {
         // Use repository method that eagerly fetches user relationship
         List<Ngo> allNgos = ngoRepository.findAllWithUser();
+        logger.info("📊 Total NGOs in database: {}", allNgos.size());
+        
         List<Ngo> nearbyNgos = new ArrayList<>();
 
         for (Ngo ngo : allNgos) {
+            logger.debug("Checking NGO: {} (ID: {})", ngo.getOrganizationName(), ngo.getNgoId());
+            
             // Skip if no location
             if (ngo.getLatitude() == null || ngo.getLongitude() == null) {
+                logger.warn("⚠️ NGO {} has no coordinates (lat: {}, lng: {})", 
+                        ngo.getOrganizationName(), ngo.getLatitude(), ngo.getLongitude());
                 continue;
             }
 
             // User is already loaded, so we can safely check isActive
             if (ngo.getUser() != null && !ngo.getUser().getIsActive()) {
+                logger.warn("⚠️ NGO {} has inactive user", ngo.getOrganizationName());
                 continue;
             }
 
@@ -169,11 +176,19 @@ public class NotificationService {
                     ngo.getLongitude().doubleValue()
             );
 
+            logger.debug("NGO {} distance: {} km (radius limit: {} km)", 
+                    ngo.getOrganizationName(), distance, radiusKm);
+
             if (distance <= radiusKm) {
                 nearbyNgos.add(ngo);
+                logger.info("✅ NGO {} is within radius ({} km)", ngo.getOrganizationName(), distance);
+            } else {
+                logger.debug("❌ NGO {} is outside radius ({} km > {} km)", 
+                        ngo.getOrganizationName(), distance, radiusKm);
             }
         }
 
+        logger.info("📍 Found {} NGOs within {} km radius", nearbyNgos.size(), radiusKm);
         return nearbyNgos;
     }
 
@@ -181,35 +196,74 @@ public class NotificationService {
      * Filter NGOs by dietary preference match
      */
     private List<Ngo> filterByDietaryMatch(List<Ngo> ngos, FoodListing foodListing) {
+        String foodCategory = foodListing.getCategory().name().toLowerCase();
+        String foodCategoryDisplay = foodListing.getCategory().getDisplayName().toLowerCase();
+        logger.info("🥗 Filtering {} NGOs by dietary preference. Food category: {} ({})", 
+                ngos.size(), foodCategory, foodCategoryDisplay);
+        
         return ngos.stream()
                 .filter(ngo -> {
                     // If NGO has no preference, include
                     String dietaryReq = ngo.getDietaryRequirements();
+                    logger.debug("NGO: {}, Dietary Requirements: {}", ngo.getOrganizationName(), dietaryReq);
+                    
                     if (dietaryReq == null || dietaryReq.trim().isEmpty() ||
                             dietaryReq.toLowerCase().contains("all")) {
+                        logger.debug("✅ NGO {} included (no preference or 'all')", ngo.getOrganizationName());
                         return true;
                     }
 
                     // Match dietary preference
-                    String foodCategory = foodListing.getCategory().name().toLowerCase();
                     String ngoPreference = dietaryReq.toLowerCase();
 
-                    // Vegetarian match
-                    if (foodCategory.contains("veg") && ngoPreference.contains("veg")) {
+                    // Check if NGO accepts all types (has "non-veg ok" or similar)
+                    if (ngoPreference.contains("non-veg ok") || ngoPreference.contains("all types") || 
+                        ngoPreference.contains("any") || ngoPreference.contains("non veg ok")) {
+                        logger.debug("✅ NGO {} included (accepts all types)", ngo.getOrganizationName());
                         return true;
                     }
 
-                    // Non-veg match
-                    if ((foodCategory.contains("protein") || foodCategory.contains("meat")) &&
-                            ngoPreference.contains("non")) {
+                    // Determine if food is vegetarian or non-vegetarian
+                    // PROTEINS category might be non-veg, but most others are vegetarian
+                    // Non-vegetarian keywords in category
+                    boolean isFoodNonVeg = foodCategory.contains("protein") && 
+                                          (foodCategoryDisplay.contains("chicken") || 
+                                           foodCategoryDisplay.contains("fish") || 
+                                           foodCategoryDisplay.contains("meat") ||
+                                           foodCategoryDisplay.contains("non-veg"));
+                    
+                    // If food is non-vegetarian (only PROTEINS with meat/fish/chicken)
+                    if (isFoodNonVeg) {
+                        // NGO must accept non-veg
+                        if (ngoPreference.contains("non") || ngoPreference.contains("all") || 
+                            ngoPreference.contains("non-veg ok")) {
+                            logger.debug("✅ NGO {} included (non-veg food, NGO accepts non-veg)", 
+                                    ngo.getOrganizationName());
+                            return true;
+                        } else {
+                            logger.debug("❌ NGO {} excluded (non-veg food, NGO only accepts veg)", 
+                                    ngo.getOrganizationName());
+                            return false;
+                        }
+                    }
+                    
+                    // Food is vegetarian (default - COOKED_RICE, VEGETABLES, BREAD, SWEETS, etc.)
+                    // NGO must accept vegetarian (most NGOs do)
+                    if (ngoPreference.contains("veg") || ngoPreference.contains("all") || 
+                        ngoPreference.contains("vegetarian")) {
+                        logger.debug("✅ NGO {} included (vegetarian food, NGO accepts veg)", 
+                                ngo.getOrganizationName());
                         return true;
                     }
 
                     // Vegan match
                     if (foodCategory.contains("vegan") && ngoPreference.contains("vegan")) {
+                        logger.debug("✅ NGO {} included (vegan match)", ngo.getOrganizationName());
                         return true;
                     }
 
+                    logger.debug("❌ NGO {} excluded (dietary mismatch: food={}, ngo={})", 
+                            ngo.getOrganizationName(), foodCategory, ngoPreference);
                     return false;
                 })
                 .collect(Collectors.toList());
@@ -269,13 +323,18 @@ public class NotificationService {
     }
 
     /**
-     * Get top 5 registered + top 5 unregistered NGOs near restaurant
-     * Send SMS/Email to top 5 registered only
+     * Get top 10 registered + top 10 unregistered NGOs near restaurant
+     * Send SMS/Email to top 10 registered only
      */
     public NearbyOrganizationsResponse getAndNotifyNearbyNgos(
             FoodListing foodListing,
             Restaurant restaurant
     ) {
+        logger.info("🔍 Finding nearby NGOs for restaurant: {} at ({}, {})", 
+                restaurant.getOrganizationName(), 
+                restaurant.getLatitude(), 
+                restaurant.getLongitude());
+        
         // Find all nearby registered NGOs
         List<Ngo> nearbyNgos = findNearbyNgos(
                 restaurant.getLatitude().doubleValue(),
@@ -283,10 +342,24 @@ public class NotificationService {
                 10.0
         );
 
-        // Filter by dietary preference
-        nearbyNgos = filterByDietaryMatch(nearbyNgos, foodListing);
+        logger.info("📍 Found {} NGOs within 10km radius", nearbyNgos.size());
+        nearbyNgos.forEach(ngo -> {
+            double dist = matchingAlgorithmService.calculateDistance(
+                    restaurant.getLatitude().doubleValue(),
+                    restaurant.getLongitude().doubleValue(),
+                    ngo.getLatitude().doubleValue(),
+                    ngo.getLongitude().doubleValue()
+            );
+            logger.info("  - {} at distance: {} km", ngo.getOrganizationName(), dist);
+        });
 
-        // Sort by distance and get top 5 with contact info
+        // Filter by dietary preference
+        int beforeFilter = nearbyNgos.size();
+        nearbyNgos = filterByDietaryMatch(nearbyNgos, foodListing);
+        logger.info("🥗 After dietary filter: {} NGOs (removed {})", nearbyNgos.size(), beforeFilter - nearbyNgos.size());
+
+        // Sort by distance and get top 10 with contact info
+        logger.info("🔨 Building contact responses for {} NGOs", nearbyNgos.size());
         List<NgoWithContactResponse> top5RegisteredNgos = nearbyNgos.stream()
                 .map(ngo -> {
                     double distance = matchingAlgorithmService.calculateDistance(
@@ -295,14 +368,23 @@ public class NotificationService {
                             ngo.getLatitude().doubleValue(),
                             ngo.getLongitude().doubleValue()
                     );
-                    return buildNgoWithContact(ngo, distance);
+                    NgoWithContactResponse response = buildNgoWithContact(ngo, distance);
+                    if (response == null) {
+                        logger.warn("⚠️ buildNgoWithContact returned null for NGO: {}", ngo.getOrganizationName());
+                    } else {
+                        logger.info("✅ Built response for NGO: {} at {} km", ngo.getOrganizationName(), distance);
+                    }
+                    return response;
                 })
                 .filter(ngo -> ngo != null) // Filter out null responses
                 .sorted(Comparator.comparing(NgoWithContactResponse::getDistanceKm))
                 .limit(TOP_N)
                 .collect(Collectors.toList());
+        
+        logger.info("📋 Final top {} registered NGOs: {}", top5RegisteredNgos.size(), 
+                top5RegisteredNgos.stream().map(NgoWithContactResponse::getOrganizationName).collect(Collectors.toList()));
 
-        // Send SMS/Email to top 5 registered NGOs
+        // Send SMS/Email to top 10 registered NGOs
         int notifiedCount = 0;
         if (!top5RegisteredNgos.isEmpty()) {
             notifiedCount = notifyRegisteredNgos(
@@ -312,7 +394,7 @@ public class NotificationService {
             );
         }
 
-        // Find top 5 unregistered NGOs from Google Places
+        // Find top 10 unregistered NGOs from Google Places
         List<NearbyNgoPlaceResponse> top5UnregisteredNgos = new ArrayList<>();
         try {
             List<NearbyNgoPlaceResponse> googleNgos = googlePlacesService.findNearbyNgoPlaces(
@@ -339,15 +421,23 @@ public class NotificationService {
         }
 
         // Build response
-        return NearbyOrganizationsResponse.builder()
+        logger.info("📦 Building NearbyOrganizationsResponse: {} registered, {} unregistered", 
+                top5RegisteredNgos.size(), top5UnregisteredNgos.size());
+        
+        NearbyOrganizationsResponse response = NearbyOrganizationsResponse.builder()
                 .registeredNgos(top5RegisteredNgos)
                 .unregisteredNgos(top5UnregisteredNgos)
                 .notifiedCount(notifiedCount)
                 .build();
+        
+        logger.info("✅ Response built successfully. Registered NGOs count: {}", 
+                response.getRegisteredNgos() != null ? response.getRegisteredNgos().size() : 0);
+        
+        return response;
     }
 
     /**
-     * Send SMS to registered NGOs (top 5)
+     * Send SMS to registered NGOs (top 10)
      */
     private int notifyRegisteredNgos(
             List<NgoWithContactResponse> ngos,
@@ -379,20 +469,66 @@ public class NotificationService {
                 urgency
         );
 
-        // Collect valid phone numbers from top 5
+        // Collect valid phone numbers from top 10
+        logger.info("📱 Collecting phone numbers from {} NGOs", ngos.size());
+        
+        // Log all NGOs first
+        ngos.forEach(ngo -> {
+            logger.info("📱 NGO: '{}', Phone: '{}', Email: '{}'", 
+                    ngo.getOrganizationName(), ngo.getPhone(), ngo.getEmail());
+        });
+        
         List<String> phoneNumbers = ngos.stream()
-                .map(NgoWithContactResponse::getPhone)
-                .filter(phone -> phone != null && !phone.isEmpty())
-                .filter(smsService::isValidIndianMobile)
+                .map(ngo -> {
+                    String phone = ngo.getPhone();
+                    boolean isValid = phone != null && !phone.isEmpty() && smsService.isValidIndianMobile(phone);
+                    logger.info("📱 NGO: '{}', Phone: '{}', Valid: {}", 
+                            ngo.getOrganizationName(), phone, isValid);
+                    if (!isValid && phone != null && !phone.isEmpty()) {
+                        logger.warn("⚠️ Phone number '{}' for NGO '{}' failed validation", 
+                                phone, ngo.getOrganizationName());
+                    }
+                    return phone;
+                })
+                .filter(phone -> {
+                    if (phone == null || phone.isEmpty()) {
+                        logger.debug("Filtering out null/empty phone number");
+                        return false;
+                    }
+                    boolean isValid = smsService.isValidIndianMobile(phone);
+                    if (!isValid) {
+                        logger.warn("⚠️ Phone number '{}' failed validation and was filtered out", phone);
+                    }
+                    return isValid;
+                })
                 .collect(Collectors.toList());
+
+        logger.info("📱 Valid phone numbers collected: {} out of {} NGOs", phoneNumbers.size(), ngos.size());
+        logger.info("📱 Phone numbers to send SMS: {}", phoneNumbers);
 
         // Send SMS in bulk
         if (!phoneNumbers.isEmpty()) {
+            logger.info("📱 Attempting to send SMS to {} phone numbers", phoneNumbers.size());
             boolean smsSent = smsService.sendSms(phoneNumbers, smsMessage);
             if (smsSent) {
-                logger.info("SMS sent to {} NGOs (top 5)", phoneNumbers.size());
+                // Note: smsSent=true means at least one SMS was sent successfully
+                // Some may have failed (e.g., unverified numbers on trial account)
+                logger.info("✅ SMS sent successfully to at least one NGO (some may have failed if unverified)");
+                // Return the count of phone numbers we attempted to send to
+                // The actual success count is logged by SmsService
                 return phoneNumbers.size();
+            } else {
+                logger.error("❌ Failed to send SMS to all {} NGOs", phoneNumbers.size());
+                logger.error("💡 Check logs above for details. If using Twilio Trial account, verify numbers at:");
+                logger.error("   https://www.twilio.com/console/phone-numbers/verified");
             }
+        } else {
+            logger.warn("⚠️ No valid phone numbers found in {} NGOs", ngos.size());
+            // Log NGO details for debugging
+            ngos.forEach(ngo -> {
+                logger.warn("NGO: {}, Phone: {}, Email: {}", 
+                        ngo.getOrganizationName(), ngo.getPhone(), ngo.getEmail());
+            });
         }
 
         return 0;
@@ -403,7 +539,7 @@ public class NotificationService {
      */
     private NgoWithContactResponse buildNgoWithContact(Ngo ngo, double distance) {
         if (ngo == null) {
-            logger.warn("Attempted to build NgoWithContactResponse from null NGO");
+            logger.warn("⚠️ Attempted to build NgoWithContactResponse from null NGO");
             return null;
         }
         
@@ -413,12 +549,16 @@ public class NotificationService {
             if (ngo.getUser() != null) {
                 phone = ngo.getUser().getPhone();
                 email = ngo.getUser().getEmail();
+                logger.info("📱 NGO '{}' contact info: phone='{}', email='{}'", 
+                        ngo.getOrganizationName(), phone, email);
+            } else {
+                logger.warn("⚠️ NGO {} has no user relationship", ngo.getOrganizationName());
             }
         } catch (Exception e) {
-            logger.warn("Failed to get user info for NGO {}: {}", ngo.getNgoId(), e.getMessage());
+            logger.error("❌ Failed to get user info for NGO {}: {}", ngo.getNgoId(), e.getMessage(), e);
         }
         
-        return NgoWithContactResponse.builder()
+        NgoWithContactResponse response = NgoWithContactResponse.builder()
                 .ngoId(ngo.getNgoId())
                 .organizationName(ngo.getOrganizationName() != null ? ngo.getOrganizationName() : "Unknown")
                 .phone(phone)
@@ -429,11 +569,16 @@ public class NotificationService {
                 .dietaryRequirements(ngo.getDietaryRequirements())
                 .isRegistered(true)
                 .build();
+        
+        logger.debug("✅ Built NgoWithContactResponse for {}: distance={}km, phone={}", 
+                ngo.getOrganizationName(), response.getDistanceKm(), phone != null ? "yes" : "no");
+        
+        return response;
     }
 
     /**
-     * Get top 5 registered + top 5 unregistered Restaurants near NGO
-     * Send SMS/Email to top 5 registered restaurants
+     * Get top 10 registered + top 10 unregistered Restaurants near NGO
+     * Send SMS/Email to top 10 registered restaurants
      */
     public NearbyRestaurantsResponse getAndNotifyNearbyRestaurants(
             Ngo ngo,
@@ -447,7 +592,7 @@ public class NotificationService {
                 10.0
         );
 
-        // Sort by distance and get top 5 with contact info
+        // Sort by distance and get top 10 with contact info
         List<RestaurantWithContactResponse> top5RegisteredRestaurants = nearbyRestaurants.stream()
                 .map(restaurant -> {
                     double distance = matchingAlgorithmService.calculateDistance(
@@ -463,7 +608,7 @@ public class NotificationService {
                 .limit(TOP_N)
                 .collect(Collectors.toList());
 
-        // Send notification to top 5 registered restaurants
+        // Send notification to top 10 registered restaurants
         int notifiedCount = 0;
         if (!top5RegisteredRestaurants.isEmpty()) {
             notifiedCount = notifyRegisteredRestaurants(
@@ -474,7 +619,7 @@ public class NotificationService {
             );
         }
 
-        // Find top 5 unregistered restaurants from Google Places
+        // Find top 10 unregistered restaurants from Google Places
         List<NearbyRestaurantResponse> top5UnregisteredRestaurants = new ArrayList<>();
         try {
             List<NearbyRestaurantResponse> googleRestaurants = googlePlacesService.findNearbyRestaurants(
@@ -510,7 +655,7 @@ public class NotificationService {
     }
 
     /**
-     * Send SMS to registered restaurants (top 5)
+     * Send SMS to registered restaurants (top 10)
      */
     private int notifyRegisteredRestaurants(
             List<RestaurantWithContactResponse> restaurants,
@@ -530,7 +675,7 @@ public class NotificationService {
                 appName
         );
 
-        // Collect phone numbers from top 5
+        // Collect phone numbers from top 10
         List<String> phoneNumbers = restaurants.stream()
                 .map(RestaurantWithContactResponse::getPhone)
                 .filter(phone -> phone != null && !phone.isEmpty())
@@ -541,7 +686,7 @@ public class NotificationService {
         if (!phoneNumbers.isEmpty()) {
             boolean sent = smsService.sendSms(phoneNumbers, message);
             if (sent) {
-                logger.info("SMS sent to {} restaurants (top 5)", phoneNumbers.size());
+                logger.info("SMS sent to {} restaurants (top 10)", phoneNumbers.size());
                 return phoneNumbers.size();
             }
         }

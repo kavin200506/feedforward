@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ngoService } from '../../services';
 import { useNotification } from '../../context/NotificationContext';
-import { Loader, Button } from '../../components/common';
+import { Loader, Button, Pagination } from '../../components/common';
 import FilterSidebar from '../../components/ngo/FilterSidebar';
 import FoodCard from '../../components/ngo/FoodCard';
 import RequestFoodModal from '../../components/ngo/RequestFoodModal';
@@ -27,6 +27,12 @@ const BrowseFoodPage = () => {
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [selectedFood, setSelectedFood] = useState(null);
   const [showRequestModal, setShowRequestModal] = useState(false);
+  
+  // Pagination state
+  const [foodListingsPage, setFoodListingsPage] = useState(1);
+  const [restaurantsPage, setRestaurantsPage] = useState(1);
+  const [foodListingsPerPage, setFoodListingsPerPage] = useState(12);
+  const [restaurantsPerPage, setRestaurantsPerPage] = useState(12);
 
   const debouncedSearch = useDebounce(searchQuery, 300);
 
@@ -85,6 +91,26 @@ const BrowseFoodPage = () => {
     setSelectedFood(null);
     fetchFoodListings();
   };
+
+  // Paginated food listings
+  const paginatedFoodListings = useMemo(() => {
+    const start = (foodListingsPage - 1) * foodListingsPerPage;
+    const end = start + foodListingsPerPage;
+    return foodListings.slice(start, end);
+  }, [foodListings, foodListingsPage, foodListingsPerPage]);
+
+  // Paginated restaurants
+  const paginatedRestaurants = useMemo(() => {
+    const start = (restaurantsPage - 1) * restaurantsPerPage;
+    const end = start + restaurantsPerPage;
+    return nearbyRestaurants.slice(start, end);
+  }, [nearbyRestaurants, restaurantsPage, restaurantsPerPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setFoodListingsPage(1);
+    setRestaurantsPage(1);
+  }, [filters, debouncedSearch]);
 
   return (
     <div className="browse-food-page">
@@ -154,7 +180,7 @@ const BrowseFoodPage = () => {
                       ✅ Food Available Now ({foodListings.length})
                     </h2>
                     <div className="food-grid">
-                      {foodListings.map((food) => (
+                      {paginatedFoodListings.map((food) => (
                         <FoodCard
                           key={food.listingId}
                           food={food}
@@ -162,6 +188,20 @@ const BrowseFoodPage = () => {
                         />
                       ))}
                     </div>
+                    {foodListings.length > foodListingsPerPage && (
+                      <Pagination
+                        currentPage={foodListingsPage}
+                        totalPages={Math.ceil(foodListings.length / foodListingsPerPage)}
+                        totalItems={foodListings.length}
+                        itemsPerPage={foodListingsPerPage}
+                        onPageChange={setFoodListingsPage}
+                        onItemsPerPageChange={(value) => {
+                          setFoodListingsPerPage(value);
+                          setFoodListingsPage(1);
+                        }}
+                        itemsPerPageOptions={[6, 12, 24, 48]}
+                      />
+                    )}
                   </div>
                 )}
 
@@ -175,7 +215,7 @@ const BrowseFoodPage = () => {
                       These restaurants are nearby but not yet on FeedForward
                     </p>
                     <div className="food-grid">
-                      {nearbyRestaurants.map((restaurant, index) => (
+                      {paginatedRestaurants.map((restaurant, index) => (
                         <div key={restaurant.placeId || index} className="nearby-restaurant-card">
                           <div className="restaurant-card-header">
                             <h3>🍽️ {restaurant.name}</h3>
@@ -203,6 +243,20 @@ const BrowseFoodPage = () => {
                         </div>
                       ))}
                     </div>
+                    {nearbyRestaurants.length > restaurantsPerPage && (
+                      <Pagination
+                        currentPage={restaurantsPage}
+                        totalPages={Math.ceil(nearbyRestaurants.length / restaurantsPerPage)}
+                        totalItems={nearbyRestaurants.length}
+                        itemsPerPage={restaurantsPerPage}
+                        onPageChange={setRestaurantsPage}
+                        onItemsPerPageChange={(value) => {
+                          setRestaurantsPerPage(value);
+                          setRestaurantsPage(1);
+                        }}
+                        itemsPerPageOptions={[6, 12, 24, 48]}
+                      />
+                    )}
                   </div>
                 )}
 
