@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
@@ -11,7 +11,7 @@ import { FiPlus, FiPackage, FiClock, FiCheckCircle } from 'react-icons/fi';
 import './RestaurantDashboard.css';
 
 const RestaurantDashboard = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { showError, showSuccess } = useNotification();
   const navigate = useNavigate();
 
@@ -29,27 +29,113 @@ const RestaurantDashboard = () => {
   const [listingsPage, setListingsPage] = useState(1);
   const [listingsPerPage, setListingsPerPage] = useState(10);
 
+  // Prevent duplicate API calls
+  const fetchingRef = useRef(false);
+  const lastFetchTimeRef = useRef(0);
+  const FETCH_DEBOUNCE_MS = 1000; // Don't fetch more than once per second
+
   useEffect(() => {
+    // Only fetch if user is authenticated
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    // Prevent duplicate calls
+    const now = Date.now();
+    if (fetchingRef.current || (now - lastFetchTimeRef.current < FETCH_DEBOUNCE_MS)) {
+      return;
+    }
+
     fetchDashboardData();
-  }, []);
+    
+    // Auto-refresh every 30 seconds to get updated request statuses
+    const interval = setInterval(() => {
+      if (user && !fetchingRef.current) {
+        const now = Date.now();
+        if (now - lastFetchTimeRef.current >= FETCH_DEBOUNCE_MS) {
+          fetchDashboardData();
+        }
+      }
+    }, 30000); // 30 seconds
+
+    // Refresh when window comes into focus (debounced)
+    const handleFocus = () => {
+      if (user && !fetchingRef.current) {
+        const now = Date.now();
+        if (now - lastFetchTimeRef.current >= FETCH_DEBOUNCE_MS) {
+          fetchDashboardData();
+        }
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [user]);
 
   const fetchDashboardData = async () => {
+    // Prevent duplicate calls
+    if (fetchingRef.current) {
+      console.log('⏸️ Dashboard fetch already in progress, skipping...');
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastFetchTimeRef.current < FETCH_DEBOUNCE_MS) {
+      console.log('⏸️ Dashboard fetch debounced, skipping...');
+      return;
+    }
+
+    fetchingRef.current = true;
+    lastFetchTimeRef.current = now;
     setLoading(true);
+
     try {
+      console.log('🔄 Fetching dashboard data...');
       // Fetch all data in parallel
-      const [statsData, listingsData, requestsData] = await Promise.all([
-        dashboardService.getRestaurantStats().catch(() => ({ activeListings: 0, pendingRequests: 0, totalDonated: 0 })),
-        restaurantService.getMyListings().catch(() => ({ listings: [] })),
-        restaurantService.getPendingRequests().catch(() => ({ pendingRequests: [] })),
+      const [statsData, listingsData, requestsData, allRequestsData] = await Promise.all([
+        dashboardService.getRestaurantStats().catch((err) => {
+          console.error('Error fetching stats:', err);
+          return { activeListings: 0, pendingRequests: 0, totalDonated: 0 };
+        }),
+        restaurantService.getMyListings().catch((err) => {
+          console.error('Error fetching listings:', err);
+          return { listings: [] };
+        }),
+        restaurantService.getPendingRequests().catch((err) => {
+          console.error('Error fetching pending requests:', err);
+          return { pendingRequests: [] };
+        }),
+        restaurantService.getAllRequests().catch((err) => {
+          console.error('Error fetching all requests:', err);
+          return { allRequests: [] };
+        }),
       ]);
 
       setStats(statsData);
       setListings(listingsData.listings || []);
-      setRequests(requestsData.pendingRequests || []);
+      // Show pending requests, but also include approved and picked up for visibility
+      const allRequests = allRequestsData.allRequests || [];
+      const pendingRequests = requestsData.pendingRequests || [];
+      // Combine pending with approved/picked up requests that aren't in pending list
+      const approvedAndPickedUp = allRequests.filter(r => 
+        (r.status === 'APPROVED' || r.status === 'PICKED_UP') && 
+        !pendingRequests.find(p => p.requestId === r.requestId)
+      );
+      setRequests([...pendingRequests, ...approvedAndPickedUp]);
+      console.log('✅ Dashboard data fetched successfully');
     } catch (error) {
-      showError('Failed to load dashboard data');
+      console.error('Dashboard fetch error:', error);
+      // Don't show error if it's a 401 (will be handled by interceptor)
+      if (error?.status !== 401) {
+        showError(error?.message || 'Failed to load dashboard data');
+      }
     } finally {
       setLoading(false);
+      fetchingRef.current = false;
     }
   };
 
@@ -79,8 +165,15 @@ const RestaurantDashboard = () => {
     return listings.slice(start, end);
   }, [listings, listingsPage, listingsPerPage]);
 
-  if (loading) {
+  // Show loading if auth is loading or dashboard is loading
+  if (authLoading || loading) {
     return <Loader fullScreen text="Loading dashboard..." />;
+  }
+
+  // Redirect to auth if not authenticated
+  if (!user) {
+    navigate('/auth');
+    return null;
   }
 
   return (
@@ -137,17 +230,17 @@ const RestaurantDashboard = () => {
 
         {/* Main Content */}
         <div className="dashboard-content">
-          {/* Pending Requests Section */}
+          {/* Requests Section */}
           {requests.length > 0 && (
             <div className="dashboard-section">
               <div className="section-header">
-                <h2 className="section-title">Pending Requests</h2>
+                <h2 className="section-title">Food Requests</h2>
                 <Button variant="link" size="small" onClick={() => navigate('/restaurant/requests')}>
                   View All
                 </Button>
               </div>
               <RequestsPanel 
-                requests={requests.slice(0, 3)} 
+                requests={requests.slice(0, 5)} 
                 onUpdate={fetchDashboardData} 
               />
             </div>

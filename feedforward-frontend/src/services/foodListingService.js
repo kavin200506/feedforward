@@ -15,9 +15,21 @@ class FoodListingService {
   async addFoodListingWithNearby(listingData) {
     try {
       const response = await axiosInstance.post('/restaurant/listings/with-nearby', listingData);
+      // axiosInstance returns { data: ApiResponse }
+      // ApiResponse structure: { success, message, data: FoodListingWithNearbyResponse, timestamp }
+      // Return the inner data field which contains FoodListingWithNearbyResponse
+      if (response.data && response.data.data) {
+        return response.data.data;
+      }
+      // Fallback: return the whole response if structure is different
       return response.data;
     } catch (error) {
-      throw error.response?.data?.message || error.message || 'Failed to add food listing';
+      const errorMessage = error.response?.data?.message || 
+                          error.response?.data?.error || 
+                          error.message || 
+                          'Failed to add food listing';
+      console.error('Error adding food listing:', error);
+      throw new Error(errorMessage);
     }
   }
 

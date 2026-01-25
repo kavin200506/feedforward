@@ -63,7 +63,13 @@ const RequestFoodModal = ({ isOpen, onClose, food, onSuccess }) => {
       handleClose();
       if (onSuccess) onSuccess();
     } catch (error) {
-      showError(error.message || 'Failed to send request');
+      // Extract error message from API response
+      const errorMessage = error?.message || 
+                          error?.response?.data?.message || 
+                          error?.data?.message ||
+                          'An unexpected error occurred. Please try again later.';
+      console.error('Request food error:', error);
+      showError(errorMessage);
     } finally {
       setLoading(false);
     }

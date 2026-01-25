@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
@@ -8,8 +8,8 @@ import { FiSearch, FiPackage, FiCheckCircle, FiUsers } from 'react-icons/fi';
 import './NgoDashboard.css';
 
 const NgoDashboard = () => {
-  const { user } = useAuth();
-  const { showError } = useNotification();
+  const { user, loading: authLoading } = useAuth();
+  const { showError, showSuccess } = useNotification();
   const navigate = useNavigate();
 
   const [stats, setStats] = useState({
@@ -21,35 +21,144 @@ const NgoDashboard = () => {
   const [suggestedFood, setSuggestedFood] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Prevent duplicate API calls
+  const fetchingRef = useRef(false);
+  const lastFetchTimeRef = useRef(0);
+  const FETCH_DEBOUNCE_MS = 1000; // Don't fetch more than once per second
+
   useEffect(() => {
+    // Only fetch if user is authenticated
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    // Prevent duplicate calls
+    const now = Date.now();
+    if (fetchingRef.current || (now - lastFetchTimeRef.current < FETCH_DEBOUNCE_MS)) {
+      return;
+    }
+
     fetchDashboardData();
-  }, []);
+    
+    // Auto-refresh every 30 seconds to get updated request statuses
+    const interval = setInterval(() => {
+      if (user && !fetchingRef.current) {
+        const now = Date.now();
+        if (now - lastFetchTimeRef.current >= FETCH_DEBOUNCE_MS) {
+          fetchDashboardData();
+        }
+      }
+    }, 30000); // 30 seconds
+
+    // Refresh when window comes into focus (debounced)
+    const handleFocus = () => {
+      if (user && !fetchingRef.current) {
+        const now = Date.now();
+        if (now - lastFetchTimeRef.current >= FETCH_DEBOUNCE_MS) {
+          fetchDashboardData();
+        }
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [user]);
 
   const fetchDashboardData = async () => {
+    // Prevent duplicate calls
+    if (fetchingRef.current) {
+      console.log('⏸️ Dashboard fetch already in progress, skipping...');
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastFetchTimeRef.current < FETCH_DEBOUNCE_MS) {
+      console.log('⏸️ Dashboard fetch debounced, skipping...');
+      return;
+    }
+
+    fetchingRef.current = true;
+    lastFetchTimeRef.current = now;
     setLoading(true);
+
     try {
+      console.log('🔄 Fetching NGO dashboard data...');
       const [statsData, requestsData, foodData] = await Promise.all([
-        dashboardService.getNgoStats().catch(() => ({ 
-          activeRequests: 0, 
-          totalReceived: 0, 
-          beneficiariesFed: 0 
-        })),
-        ngoService.getMyRequests().catch(() => ({ activeRequests: [], completedRequests: [] })),
-        ngoService.searchFood({ limit: 6 }).catch(() => ({ foodListings: [] })),
+        dashboardService.getNgoStats().catch((err) => {
+          console.error('Error fetching NGO stats:', err);
+          return { 
+            activeRequests: 0, 
+            totalReceived: 0, 
+            beneficiariesFed: 0 
+          };
+        }),
+        ngoService.getMyRequests().catch((err) => {
+          console.error('Error fetching requests:', err);
+          return { activeRequests: [], completedRequests: [] };
+        }),
+        ngoService.searchFood({ limit: 6 }).catch((err) => {
+          console.error('Error searching food:', err);
+          return { foodListings: [] };
+        }),
       ]);
 
       setStats(statsData);
       setRecentRequests(requestsData.activeRequests || []);
       setSuggestedFood(foodData.foodListings || []);
+      console.log('✅ NGO dashboard data fetched successfully');
     } catch (error) {
-      showError('Failed to load dashboard data');
+      console.error('Dashboard fetch error:', error);
+      // Don't show error if it's a 401 (will be handled by interceptor)
+      if (error?.status !== 401) {
+        showError(error?.message || 'Failed to load dashboard data');
+      }
     } finally {
       setLoading(false);
+      fetchingRef.current = false;
     }
   };
 
-  if (loading) {
+  const handleMarkPickedUp = async (requestId) => {
+    try {
+      console.log('Marking request as picked up:', requestId);
+      const response = await ngoService.markAsPickedUp(requestId);
+      console.log('Mark as picked up response:', response);
+      
+      // Optimistically update the UI immediately
+      setRecentRequests(prev => prev.map(req => 
+        req.requestId === requestId 
+          ? { ...req, status: 'PICKED_UP', pickedUpAt: new Date().toISOString() }
+          : req
+      ));
+      
+      showSuccess('Marked as picked up!');
+      // Refresh to get latest data from server
+      await fetchDashboardData();
+    } catch (error) {
+      const errorMessage = error?.message || 
+                          error?.response?.data?.message || 
+                          error?.data?.message ||
+                          'Failed to update status';
+      console.error('Mark as picked up error:', error);
+      showError(errorMessage);
+      // Refresh to get correct state from server
+      await fetchDashboardData();
+    }
+  };
+
+  // Show loading if auth is loading or dashboard is loading
+  if (authLoading || loading) {
     return <Loader fullScreen text="Loading dashboard..." />;
+  }
+
+  // Redirect to auth if not authenticated
+  if (!user) {
+    navigate('/auth');
+    return null;
   }
 
   return (
@@ -134,7 +243,12 @@ const NgoDashboard = () => {
                             <span className="info-label">Pickup:</span>
                             <span className="info-value">{request.pickupTime}</span>
                           </div>
-                          <Button variant="primary" size="small" fullWidth>
+                          <Button 
+                            variant="primary" 
+                            size="small" 
+                            fullWidth
+                            onClick={() => handleMarkPickedUp(request.requestId)}
+                          >
                             Mark as Picked Up
                           </Button>
                         </>

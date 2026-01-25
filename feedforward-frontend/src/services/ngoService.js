@@ -48,7 +48,7 @@ const ngoService = {
    */
   requestFood: async (requestData) => {
     try {
-      const response = await api.post('/ngos/requests', requestData);
+      const response = await api.post('/requests', requestData);
       return response;
     } catch (error) {
       throw error;
@@ -64,9 +64,17 @@ const ngoService = {
       // Handle response structure: response.data.data or response.data
       const requests = response.data?.data || response.data || response || [];
       // Separate active and completed requests
+      // Active: PENDING, APPROVED, PICKED_UP (anything not COMPLETED or CANCELLED)
+      // Completed: COMPLETED
       return {
-        activeRequests: requests.filter(r => r.status !== 'COMPLETED' && r.status !== 'CANCELLED') || [],
-        completedRequests: requests.filter(r => r.status === 'COMPLETED') || [],
+        activeRequests: requests.filter(r => 
+          r.status && 
+          r.status !== 'COMPLETED' && 
+          r.status !== 'CANCELLED'
+        ) || [],
+        completedRequests: requests.filter(r => 
+          r.status && r.status === 'COMPLETED'
+        ) || [],
       };
     } catch (error) {
       throw error;
@@ -78,7 +86,7 @@ const ngoService = {
    */
   markAsPickedUp: async (requestId) => {
     try {
-      const response = await api.post(`/requests/${requestId}/pickup`);
+      const response = await api.patch(`/requests/${requestId}/pickup`);
       return response;
     } catch (error) {
       throw error;

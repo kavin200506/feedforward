@@ -23,7 +23,12 @@ class DashboardService {
         totalDonated: dashboard?.totalServingsDonated || 0,
       };
     } catch (error) {
-      // Return default stats on error
+      // If 401, let it propagate (interceptor will handle redirect)
+      if (error.response?.status === 401) {
+        throw error;
+      }
+      // Return default stats on other errors
+      console.error('Error getting restaurant stats:', error);
       return {
         activeListings: 0,
         pendingRequests: 0,
@@ -54,7 +59,12 @@ class DashboardService {
         beneficiariesFed: dashboard?.beneficiariesFed || 0,
       };
     } catch (error) {
-      // Return default stats on error
+      // If 401, let it propagate (interceptor will handle redirect)
+      if (error.response?.status === 401) {
+        throw error;
+      }
+      // Return default stats on other errors
+      console.error('Error getting NGO stats:', error);
       return {
         activeRequests: 0,
         totalReceived: 0,
