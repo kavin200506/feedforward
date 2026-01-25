@@ -31,21 +31,46 @@ const RestaurantDashboard = () => {
 
   useEffect(() => {
     fetchDashboardData();
+    
+    // Auto-refresh every 30 seconds to get updated request statuses
+    const interval = setInterval(() => {
+      fetchDashboardData();
+    }, 30000); // 30 seconds
+
+    // Refresh when window comes into focus
+    const handleFocus = () => {
+      fetchDashboardData();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
       // Fetch all data in parallel
-      const [statsData, listingsData, requestsData] = await Promise.all([
+      const [statsData, listingsData, requestsData, allRequestsData] = await Promise.all([
         dashboardService.getRestaurantStats().catch(() => ({ activeListings: 0, pendingRequests: 0, totalDonated: 0 })),
         restaurantService.getMyListings().catch(() => ({ listings: [] })),
         restaurantService.getPendingRequests().catch(() => ({ pendingRequests: [] })),
+        restaurantService.getAllRequests().catch(() => ({ allRequests: [] })),
       ]);
 
       setStats(statsData);
       setListings(listingsData.listings || []);
-      setRequests(requestsData.pendingRequests || []);
+      // Show pending requests, but also include approved and picked up for visibility
+      const allRequests = allRequestsData.allRequests || [];
+      const pendingRequests = requestsData.pendingRequests || [];
+      // Combine pending with approved/picked up requests that aren't in pending list
+      const approvedAndPickedUp = allRequests.filter(r => 
+        (r.status === 'APPROVED' || r.status === 'PICKED_UP') && 
+        !pendingRequests.find(p => p.requestId === r.requestId)
+      );
+      setRequests([...pendingRequests, ...approvedAndPickedUp]);
     } catch (error) {
       showError('Failed to load dashboard data');
     } finally {
@@ -137,17 +162,17 @@ const RestaurantDashboard = () => {
 
         {/* Main Content */}
         <div className="dashboard-content">
-          {/* Pending Requests Section */}
+          {/* Requests Section */}
           {requests.length > 0 && (
             <div className="dashboard-section">
               <div className="section-header">
-                <h2 className="section-title">Pending Requests</h2>
+                <h2 className="section-title">Food Requests</h2>
                 <Button variant="link" size="small" onClick={() => navigate('/restaurant/requests')}>
                   View All
                 </Button>
               </div>
               <RequestsPanel 
-                requests={requests.slice(0, 3)} 
+                requests={requests.slice(0, 5)} 
                 onUpdate={fetchDashboardData} 
               />
             </div>

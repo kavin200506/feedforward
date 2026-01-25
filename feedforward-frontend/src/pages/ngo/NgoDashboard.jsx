@@ -9,7 +9,7 @@ import './NgoDashboard.css';
 
 const NgoDashboard = () => {
   const { user } = useAuth();
-  const { showError } = useNotification();
+  const { showError, showSuccess } = useNotification();
   const navigate = useNavigate();
 
   const [stats, setStats] = useState({
@@ -23,6 +23,22 @@ const NgoDashboard = () => {
 
   useEffect(() => {
     fetchDashboardData();
+    
+    // Auto-refresh every 30 seconds to get updated request statuses
+    const interval = setInterval(() => {
+      fetchDashboardData();
+    }, 30000); // 30 seconds
+
+    // Refresh when window comes into focus
+    const handleFocus = () => {
+      fetchDashboardData();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   const fetchDashboardData = async () => {
@@ -45,6 +61,34 @@ const NgoDashboard = () => {
       showError('Failed to load dashboard data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleMarkPickedUp = async (requestId) => {
+    try {
+      console.log('Marking request as picked up:', requestId);
+      const response = await ngoService.markAsPickedUp(requestId);
+      console.log('Mark as picked up response:', response);
+      
+      // Optimistically update the UI immediately
+      setRecentRequests(prev => prev.map(req => 
+        req.requestId === requestId 
+          ? { ...req, status: 'PICKED_UP', pickedUpAt: new Date().toISOString() }
+          : req
+      ));
+      
+      showSuccess('Marked as picked up!');
+      // Refresh to get latest data from server
+      await fetchDashboardData();
+    } catch (error) {
+      const errorMessage = error?.message || 
+                          error?.response?.data?.message || 
+                          error?.data?.message ||
+                          'Failed to update status';
+      console.error('Mark as picked up error:', error);
+      showError(errorMessage);
+      // Refresh to get correct state from server
+      await fetchDashboardData();
     }
   };
 
@@ -134,7 +178,12 @@ const NgoDashboard = () => {
                             <span className="info-label">Pickup:</span>
                             <span className="info-value">{request.pickupTime}</span>
                           </div>
-                          <Button variant="primary" size="small" fullWidth>
+                          <Button 
+                            variant="primary" 
+                            size="small" 
+                            fullWidth
+                            onClick={() => handleMarkPickedUp(request.requestId)}
+                          >
                             Mark as Picked Up
                           </Button>
                         </>
