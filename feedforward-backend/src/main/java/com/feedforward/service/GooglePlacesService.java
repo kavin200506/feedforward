@@ -325,9 +325,82 @@ public class GooglePlacesService {
         }
 
         // Sort by distance, closest first
-        return byPlaceId.values().stream()
+        List<NearbyRestaurantResponse> sortedRestaurants = byPlaceId.values().stream()
                 .sorted(Comparator.comparingDouble(p -> p.getDistanceKm() != null ? p.getDistanceKm() : Double.MAX_VALUE))
                 .toList();
+
+        // Fetch phone numbers for top 10 restaurants using Place Details API
+        // Limit to top 10 to avoid excessive API calls (10 API calls max)
+        List<NearbyRestaurantResponse> top10Restaurants = sortedRestaurants.stream()
+                .limit(10)
+                .map(this::enrichRestaurantWithPlaceDetails)
+                .toList();
+
+        // Return top 10 with phone numbers (rest are not enriched to save API calls)
+        return top10Restaurants;
+    }
+
+    /**
+     * Fetch phone number and website for a restaurant using Place Details API
+     */
+    @SuppressWarnings("unchecked")
+    private NearbyRestaurantResponse enrichRestaurantWithPlaceDetails(NearbyRestaurantResponse restaurant) {
+        if (restaurant.getPlaceId() == null || restaurant.getPlaceId().isBlank()) {
+            return restaurant;
+        }
+
+        try {
+            String url = UriComponentsBuilder
+                    .fromHttpUrl(placeDetailsUrl)
+                    .queryParam("place_id", restaurant.getPlaceId())
+                    .queryParam("fields", "formatted_phone_number,international_phone_number,website")
+                    .queryParam("key", apiKey)
+                    .toUriString();
+
+            Map<String, Object> response = restTemplate.getForObject(url, Map.class);
+            if (response == null) return restaurant;
+
+            String status = Objects.toString(response.get("status"), "UNKNOWN");
+            if (!"OK".equals(status)) {
+                logger.debug("Place Details API returned status={} for place_id={}", status, restaurant.getPlaceId());
+                return restaurant;
+            }
+
+            Object resultObj = response.get("result");
+            if (!(resultObj instanceof Map<?, ?> result)) return restaurant;
+
+            // Extract phone number (prefer formatted, fallback to international)
+            String phoneNumber = Objects.toString(result.get("formatted_phone_number"), null);
+            if (phoneNumber == null || phoneNumber.isBlank()) {
+                phoneNumber = Objects.toString(result.get("international_phone_number"), null);
+            }
+
+            // Extract website
+            String website = Objects.toString(result.get("website"), null);
+
+            // Update restaurant with additional details
+            return NearbyRestaurantResponse.builder()
+                    .placeId(restaurant.getPlaceId())
+                    .name(restaurant.getName())
+                    .address(restaurant.getAddress())
+                    .latitude(restaurant.getLatitude())
+                    .longitude(restaurant.getLongitude())
+                    .distanceKm(restaurant.getDistanceKm())
+                    .rating(restaurant.getRating())
+                    .types(restaurant.getTypes())
+                    .mapsUrl(restaurant.getMapsUrl())
+                    .phoneNumber(phoneNumber)
+                    .website(website)
+                    .isRegistered(restaurant.getIsRegistered())
+                    .build();
+
+        } catch (RestClientException ex) {
+            logger.warn("Failed to fetch place details for restaurant place_id {}: {}", restaurant.getPlaceId(), ex.getMessage());
+            return restaurant;
+        } catch (Exception ex) {
+            logger.warn("Unexpected error fetching place details for restaurant place_id {}: {}", restaurant.getPlaceId(), ex.getMessage());
+            return restaurant;
+        }
     }
 }
 

@@ -25,6 +25,24 @@ spring:
       enabled: true
       max-file-size: 10MB
       max-request-size: 10MB
+  
+  # Gmail SMTP Email Configuration
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${GMAIL_USERNAME:kavinchandrasekar4@gmail.com}
+    password: ${GMAIL_APP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+    enabled: ${EMAIL_ENABLED:true}
 
 server:
   port: 8080
