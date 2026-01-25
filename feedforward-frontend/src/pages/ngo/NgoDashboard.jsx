@@ -122,11 +122,7 @@ const NgoDashboard = () => {
     }
   };
 
-<<<<<<< HEAD
-  // if (loading) {
-  //   return <Loader fullScreen text="Loading dashboard..." />;
-  // }
-=======
+
   const handleMarkPickedUp = async (requestId) => {
     try {
       console.log('Marking request as picked up:', requestId);
@@ -155,11 +151,7 @@ const NgoDashboard = () => {
     }
   };
 
-  // Show loading if auth is loading or dashboard is loading
-  if (authLoading || loading) {
-    return <Loader fullScreen text="Loading dashboard..." />;
-  }
->>>>>>> d93193f56c4d0ff85a2c08d1bdd7290b00650733
+
 
   // Redirect to auth if not authenticated
   if (!user) {

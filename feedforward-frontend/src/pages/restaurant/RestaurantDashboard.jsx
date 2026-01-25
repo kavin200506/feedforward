@@ -165,16 +165,7 @@ const RestaurantDashboard = () => {
     return listings.slice(start, end);
   }, [listings, listingsPage, listingsPerPage]);
 
-<<<<<<< HEAD
-  // if (loading) {
-  //   return <Loader fullScreen text="Loading dashboard..." />;
-  // }
-=======
-  // Show loading if auth is loading or dashboard is loading
-  if (authLoading || loading) {
-    return <Loader fullScreen text="Loading dashboard..." />;
-  }
->>>>>>> d93193f56c4d0ff85a2c08d1bdd7290b00650733
+
 
   // Redirect to auth if not authenticated
   if (!user) {
@@ -242,8 +233,7 @@ const RestaurantDashboard = () => {
 
         {/* Main Content */}
         <div className="dashboard-content">
-<<<<<<< HEAD
-          {/* Pending Requests Section */}
+          {/* Requests Section */}
           {loading ? (
             <div className="dashboard-section">
               <div className="section-header">
@@ -253,10 +243,6 @@ const RestaurantDashboard = () => {
               <Skeleton type="card" height="120px" count={2} style={{ marginBottom: '1rem' }} />
             </div>
           ) : requests.length > 0 && (
-=======
-          {/* Requests Section */}
-          {requests.length > 0 && (
->>>>>>> d93193f56c4d0ff85a2c08d1bdd7290b00650733
             <div className="dashboard-section">
               <div className="section-header">
                 <h2 className="section-title">Food Requests</h2>
