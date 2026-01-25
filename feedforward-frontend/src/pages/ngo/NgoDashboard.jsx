@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
@@ -8,7 +8,7 @@ import { FiSearch, FiPackage, FiCheckCircle, FiUsers } from 'react-icons/fi';
 import './NgoDashboard.css';
 
 const NgoDashboard = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { showError, showSuccess } = useNotification();
   const navigate = useNavigate();
 
@@ -21,17 +21,44 @@ const NgoDashboard = () => {
   const [suggestedFood, setSuggestedFood] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Prevent duplicate API calls
+  const fetchingRef = useRef(false);
+  const lastFetchTimeRef = useRef(0);
+  const FETCH_DEBOUNCE_MS = 1000; // Don't fetch more than once per second
+
   useEffect(() => {
+    // Only fetch if user is authenticated
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    // Prevent duplicate calls
+    const now = Date.now();
+    if (fetchingRef.current || (now - lastFetchTimeRef.current < FETCH_DEBOUNCE_MS)) {
+      return;
+    }
+
     fetchDashboardData();
     
     // Auto-refresh every 30 seconds to get updated request statuses
     const interval = setInterval(() => {
-      fetchDashboardData();
+      if (user && !fetchingRef.current) {
+        const now = Date.now();
+        if (now - lastFetchTimeRef.current >= FETCH_DEBOUNCE_MS) {
+          fetchDashboardData();
+        }
+      }
     }, 30000); // 30 seconds
 
-    // Refresh when window comes into focus
+    // Refresh when window comes into focus (debounced)
     const handleFocus = () => {
-      fetchDashboardData();
+      if (user && !fetchingRef.current) {
+        const now = Date.now();
+        if (now - lastFetchTimeRef.current >= FETCH_DEBOUNCE_MS) {
+          fetchDashboardData();
+        }
+      }
     };
     window.addEventListener('focus', handleFocus);
 
@@ -39,28 +66,59 @@ const NgoDashboard = () => {
       clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
     };
-  }, []);
+  }, [user]);
 
   const fetchDashboardData = async () => {
+    // Prevent duplicate calls
+    if (fetchingRef.current) {
+      console.log('⏸️ Dashboard fetch already in progress, skipping...');
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastFetchTimeRef.current < FETCH_DEBOUNCE_MS) {
+      console.log('⏸️ Dashboard fetch debounced, skipping...');
+      return;
+    }
+
+    fetchingRef.current = true;
+    lastFetchTimeRef.current = now;
     setLoading(true);
+
     try {
+      console.log('🔄 Fetching NGO dashboard data...');
       const [statsData, requestsData, foodData] = await Promise.all([
-        dashboardService.getNgoStats().catch(() => ({ 
-          activeRequests: 0, 
-          totalReceived: 0, 
-          beneficiariesFed: 0 
-        })),
-        ngoService.getMyRequests().catch(() => ({ activeRequests: [], completedRequests: [] })),
-        ngoService.searchFood({ limit: 6 }).catch(() => ({ foodListings: [] })),
+        dashboardService.getNgoStats().catch((err) => {
+          console.error('Error fetching NGO stats:', err);
+          return { 
+            activeRequests: 0, 
+            totalReceived: 0, 
+            beneficiariesFed: 0 
+          };
+        }),
+        ngoService.getMyRequests().catch((err) => {
+          console.error('Error fetching requests:', err);
+          return { activeRequests: [], completedRequests: [] };
+        }),
+        ngoService.searchFood({ limit: 6 }).catch((err) => {
+          console.error('Error searching food:', err);
+          return { foodListings: [] };
+        }),
       ]);
 
       setStats(statsData);
       setRecentRequests(requestsData.activeRequests || []);
       setSuggestedFood(foodData.foodListings || []);
+      console.log('✅ NGO dashboard data fetched successfully');
     } catch (error) {
-      showError('Failed to load dashboard data');
+      console.error('Dashboard fetch error:', error);
+      // Don't show error if it's a 401 (will be handled by interceptor)
+      if (error?.status !== 401) {
+        showError(error?.message || 'Failed to load dashboard data');
+      }
     } finally {
       setLoading(false);
+      fetchingRef.current = false;
     }
   };
 
@@ -92,8 +150,15 @@ const NgoDashboard = () => {
     }
   };
 
-  if (loading) {
+  // Show loading if auth is loading or dashboard is loading
+  if (authLoading || loading) {
     return <Loader fullScreen text="Loading dashboard..." />;
+  }
+
+  // Redirect to auth if not authenticated
+  if (!user) {
+    navigate('/auth');
+    return null;
   }
 
   return (

@@ -112,29 +112,12 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
       };
 
       // Use new endpoint that returns top 10 organizations with contact info
-      const apiResponse = await foodListingService.addFoodListingWithNearby(payload);
+      const response = await foodListingService.addFoodListingWithNearby(payload);
       
       // Debug: Log the full response structure
       console.log('=== FULL API RESPONSE ===');
-      console.log('Raw API Response:', apiResponse);
-      console.log('API Response (stringified):', JSON.stringify(apiResponse, null, 2));
-      
-      // Handle axios response structure: 
-      // foodListingService returns: response.data (which is ApiResponse wrapper)
-      // ApiResponse structure: { success, message, data, timestamp }
-      // apiResponse.data = { foodListing, nearbyOrganizations } (FoodListingWithNearbyResponse)
-      
-      // Check if apiResponse is already the data or if it's wrapped
-      let response = apiResponse;
-      if (apiResponse?.data && apiResponse?.success !== undefined) {
-        // It's an ApiResponse wrapper, get the data field
-        response = apiResponse.data;
-        console.log('📦 Response is wrapped in ApiResponse, extracted data:', response);
-      } else {
-        console.log('📦 Response is already the data object:', response);
-      }
-      
-      console.log('Parsed Response:', JSON.stringify(response, null, 2));
+      console.log('Response:', response);
+      console.log('Response (stringified):', JSON.stringify(response, null, 2));
 
       const listing = response?.foodListing;
       const nearbyOrgs = response?.nearbyOrganizations;
