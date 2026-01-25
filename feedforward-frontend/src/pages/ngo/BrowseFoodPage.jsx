@@ -66,7 +66,7 @@ const BrowseFoodPage = () => {
       setFoodListings(response.registeredResults || []);
       setNearbyRestaurants(response.nearbyRestaurants || []);
     } catch (error) {
-      showError('Failed to load food listings');
+      console.error('Failed to load food listings (primary endpoint):', error);
       // Fallback to old endpoint if new one fails
       try {
         // Format dietary info for fallback
