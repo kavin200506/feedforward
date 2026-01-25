@@ -19,10 +19,10 @@ const NgoRequests = () => {
   useEffect(() => {
     fetchRequests();
     
-    // Auto-refresh every 30 seconds to get updated request statuses
+    // Auto-refresh every 15 seconds to get updated request statuses (reduced from 30s for better UX)
     const interval = setInterval(() => {
-      fetchRequests();
-    }, 30000); // 30 seconds
+      fetchRequests(true); // Silent refresh
+    }, 15000); // 15 seconds
 
     // Refresh when window comes into focus
     const handleFocus = () => {
@@ -84,11 +84,29 @@ const NgoRequests = () => {
   };
 
   const handleCompleteRequest = async (requestId, quantityReceived) => {
+    // Optimistically update the UI immediately
+    setRequests(prev => ({
+      ...prev,
+      activeRequests: prev.activeRequests.filter(req => req.requestId !== requestId),
+      completedRequests: [
+        ...prev.completedRequests,
+        ...prev.activeRequests.filter(req => req.requestId === requestId).map(req => ({
+          ...req,
+          status: 'COMPLETED',
+          quantityReceived,
+          completedAt: new Date().toISOString()
+        }))
+      ]
+    }));
+    
     try {
       await ngoService.completeRequest(requestId, quantityReceived);
       showSuccess('Request completed successfully!');
-      fetchRequests();
+      // Refresh to get latest data from server (silent)
+      await fetchRequests(true);
     } catch (error) {
+      // Revert optimistic update on error
+      await fetchRequests(true);
       showError('Failed to complete request');
     }
   };
@@ -96,11 +114,20 @@ const NgoRequests = () => {
   const handleCancelRequest = async (requestId) => {
     if (!window.confirm('Are you sure you want to cancel this request?')) return;
 
+    // Optimistically update the UI immediately
+    setRequests(prev => ({
+      ...prev,
+      activeRequests: prev.activeRequests.filter(req => req.requestId !== requestId)
+    }));
+
     try {
       await ngoService.cancelRequest(requestId);
       showSuccess('Request cancelled');
-      fetchRequests();
+      // Refresh to get latest data from server (silent)
+      await fetchRequests(true);
     } catch (error) {
+      // Revert optimistic update on error
+      await fetchRequests(true);
       showError('Failed to cancel request');
     }
   };

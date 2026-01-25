@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Button, Badge, Modal, Input } from '../common';
 import { restaurantService } from '../../services';
 import { useNotification } from '../../context/NotificationContext';
 import { FiMapPin, FiPhone, FiClock, FiUsers } from 'react-icons/fi';
 import './RequestsPanel.css';
 
-const RequestsPanel = ({ requests, onUpdate }) => {
+const RequestsPanel = ({ requests, onUpdate, onRequestUpdate }) => {
   const { showSuccess, showError } = useNotification();
   const [approveModal, setApproveModal] = useState({ open: false, request: null });
   const [rejectModal, setRejectModal] = useState({ open: false, request: null });
@@ -15,6 +15,12 @@ const RequestsPanel = ({ requests, onUpdate }) => {
     pickupTime: '',
   });
   const [rejectReason, setRejectReason] = useState('');
+  const [localRequests, setLocalRequests] = useState(requests);
+  
+  // Sync local state with props
+  useEffect(() => {
+    setLocalRequests(requests);
+  }, [requests]);
 
   const handleApproveClick = (request) => {
     // Set default pickup time to 1 hour from now
@@ -40,18 +46,58 @@ const RequestsPanel = ({ requests, onUpdate }) => {
       return;
     }
 
+    const requestId = approveModal.request.requestId;
+    
+    // Optimistically update the UI immediately
+    setLocalRequests(prev => prev.map(req => 
+      req.requestId === requestId 
+        ? { 
+            ...req, 
+            status: 'APPROVED',
+            response: approveForm.response,
+            pickupTime: approveForm.pickupTime,
+            approvedAt: new Date().toISOString()
+          }
+        : req
+    ));
+    
+    // Update parent component immediately
+    if (onRequestUpdate) {
+      onRequestUpdate(requestId, {
+        status: 'APPROVED',
+        response: approveForm.response,
+        pickupTime: approveForm.pickupTime,
+        approvedAt: new Date().toISOString()
+      });
+    }
+
     setLoading(true);
     try {
       await restaurantService.approveRequest(
-        approveModal.request.requestId,
+        requestId,
         approveForm.response,
         approveForm.pickupTime
       );
       showSuccess('Request approved successfully!');
       setApproveModal({ open: false, request: null });
       setApproveForm({ response: '', pickupTime: '' });
-      if (onUpdate) onUpdate();
+      // Refresh to get latest data from server (silent refresh)
+      if (onUpdate) {
+        setTimeout(() => onUpdate(), 500);
+      }
     } catch (error) {
+      // Revert optimistic update on error
+      setLocalRequests(prev => prev.map(req => 
+        req.requestId === requestId 
+          ? approveModal.request // Restore original request
+          : req
+      ));
+      
+      // Revert parent component
+      if (onRequestUpdate) {
+        onRequestUpdate(requestId, approveModal.request);
+      }
+      
       const errorMessage = error?.message || 
                           error?.response?.data?.message || 
                           error?.data?.message ||
@@ -69,17 +115,55 @@ const RequestsPanel = ({ requests, onUpdate }) => {
       return;
     }
 
+    const requestId = rejectModal.request.requestId;
+    
+    // Optimistically update the UI immediately
+    setLocalRequests(prev => prev.map(req => 
+      req.requestId === requestId 
+        ? { 
+            ...req, 
+            status: 'REJECTED',
+            rejectionReason: rejectReason,
+            rejectedAt: new Date().toISOString()
+          }
+        : req
+    ));
+    
+    // Update parent component immediately
+    if (onRequestUpdate) {
+      onRequestUpdate(requestId, {
+        status: 'REJECTED',
+        rejectionReason: rejectReason,
+        rejectedAt: new Date().toISOString()
+      });
+    }
+
     setLoading(true);
     try {
       await restaurantService.rejectRequest(
-        rejectModal.request.requestId,
+        requestId,
         rejectReason
       );
       showSuccess('Request rejected');
       setRejectModal({ open: false, request: null });
       setRejectReason('');
-      if (onUpdate) onUpdate();
+      // Refresh to get latest data from server (silent refresh)
+      if (onUpdate) {
+        setTimeout(() => onUpdate(), 500);
+      }
     } catch (error) {
+      // Revert optimistic update on error
+      setLocalRequests(prev => prev.map(req => 
+        req.requestId === requestId 
+          ? rejectModal.request // Restore original request
+          : req
+      ));
+      
+      // Revert parent component
+      if (onRequestUpdate) {
+        onRequestUpdate(requestId, rejectModal.request);
+      }
+      
       const errorMessage = error?.message || 
                           error?.response?.data?.message || 
                           error?.data?.message ||
@@ -129,14 +213,14 @@ const RequestsPanel = ({ requests, onUpdate }) => {
   return (
     <>
       <div className="requests-panel">
-        {requests.length === 0 ? (
+        {localRequests.length === 0 ? (
           <Card>
             <div className="empty-state">
               <p>No requests at the moment</p>
             </div>
           </Card>
         ) : (
-          requests.map((request) => (
+          localRequests.map((request) => (
             <Card key={request.requestId} className="request-card">
               <div className="request-header">
                 <div>

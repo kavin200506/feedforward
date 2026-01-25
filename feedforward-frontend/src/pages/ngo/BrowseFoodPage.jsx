@@ -105,10 +105,21 @@ const BrowseFoodPage = () => {
     setShowRequestModal(true);
   };
 
-  const handleRequestSuccess = () => {
+  const handleRequestSuccess = (quantityRequested) => {
     setShowRequestModal(false);
+    // Optimistically update the food listing quantity if request was successful
+    if (selectedFood && quantityRequested) {
+      setFoodListings(prev => prev.map(food => 
+        food.listingId === selectedFood.listingId
+          ? { ...food, quantity: Math.max(0, food.quantity - quantityRequested) }
+          : food
+      ));
+    }
     setSelectedFood(null);
-    fetchFoodListings();
+    // Refresh after a short delay to get accurate data
+    setTimeout(() => {
+      fetchFoodListings();
+    }, 1000);
   };
 
   // Paginated food listings

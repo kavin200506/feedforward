@@ -49,7 +49,7 @@ const RestaurantDashboard = () => {
 
     fetchDashboardData();
     
-    // Auto-refresh every 30 seconds to get updated request statuses
+    // Auto-refresh every 15 seconds to get updated request statuses (reduced from 30s for better UX)
     const interval = setInterval(() => {
       if (user && !fetchingRef.current) {
         const now = Date.now();
@@ -57,7 +57,7 @@ const RestaurantDashboard = () => {
           fetchDashboardData();
         }
       }
-    }, 30000); // 30 seconds
+    }, 15000); // 15 seconds
 
     // Refresh when window comes into focus (debounced)
     const handleFocus = () => {
@@ -252,7 +252,22 @@ const RestaurantDashboard = () => {
               </div>
               <RequestsPanel 
                 requests={requests.slice(0, 5)} 
-                onUpdate={fetchDashboardData} 
+                onUpdate={fetchDashboardData}
+                onRequestUpdate={(requestId, updatedData) => {
+                  // Optimistically update requests in parent
+                  setRequests(prev => prev.map(req => 
+                    req.requestId === requestId 
+                      ? { ...req, ...updatedData }
+                      : req
+                  ));
+                  // Update stats if needed
+                  if (updatedData.status === 'APPROVED' || updatedData.status === 'REJECTED') {
+                    setStats(prev => ({
+                      ...prev,
+                      pendingRequests: Math.max(0, prev.pendingRequests - 1)
+                    }));
+                  }
+                }}
               />
             </div>
           )}
