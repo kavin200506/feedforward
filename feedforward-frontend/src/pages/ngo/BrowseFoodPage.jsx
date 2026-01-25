@@ -111,7 +111,7 @@ const BrowseFoodPage = () => {
     if (selectedFood && quantityRequested) {
       setFoodListings(prev => prev.map(food => 
         food.listingId === selectedFood.listingId
-          ? { ...food, quantity: Math.max(0, food.quantity - quantityRequested) }
+          ? { ...food, quantity: Math.max(0, food.quantity - quantityRequested), hasRequested: true }
           : food
       ));
     }

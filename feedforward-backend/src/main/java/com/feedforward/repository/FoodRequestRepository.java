@@ -95,6 +95,12 @@ public interface FoodRequestRepository extends JpaRepository<FoodRequest, Long> 
             @Param("listingId") Long listingId,
             @Param("ngoId") Long ngoId);
 
+    // Find listing IDs requested by NGO (for bulk check)
+    @Query("SELECT fr.foodListing.listingId FROM FoodRequest fr " +
+           "WHERE fr.ngo.ngoId = :ngoId " +
+           "AND fr.status NOT IN ('REJECTED', 'CANCELLED')")
+    List<Long> findRequestedListingIdsByNgoId(@Param("ngoId") Long ngoId);
+
     // Find approved requests with expired pickup time
     @Query("SELECT fr FROM FoodRequest fr " +
             "WHERE fr.status = 'APPROVED' " +

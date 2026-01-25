@@ -41,6 +41,7 @@ public class FoodListingResponse {
     private Double distance; // in km (calculated for NGO searches)
     private Integer matchScore; // matching score for NGO (0-100)
     private String matchReason;
+    private Boolean hasRequested; // Whether the current user (NGO) has already requested this item
 
     // Statistics
     private Integer requestCount;
