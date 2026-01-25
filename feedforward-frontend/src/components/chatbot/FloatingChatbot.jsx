@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ChatMessage from './ChatMessage';
-import './chatbot.css';
+import './Chatbot.css';
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
