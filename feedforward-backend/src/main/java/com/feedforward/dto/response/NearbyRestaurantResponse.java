@@ -21,6 +21,8 @@ public class NearbyRestaurantResponse {
     private Double rating; // Google rating if available
     private List<String> types; // cuisine types from Google Places
     private String mapsUrl; // deep link to Google Maps
+    private String phoneNumber; // phone number from Place Details API (optional)
+    private String website; // website URL from Place Details API (optional)
     private Boolean isRegistered; // false for unregistered restaurants
 }
 
