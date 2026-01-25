@@ -9,6 +9,7 @@ import { USER_ROLES } from './utils/constants';
 import AuthPage from './pages/AuthPage';
 import LandingPage from './pages/LandingPage';
 import NotFoundPage from './pages/NotFoundPage';
+import HowItWorksPage from './pages/HowItWorksPage';
 
 // Restaurant Pages (to be created in next steps)
 import RestaurantDashboard from './pages/restaurant/RestaurantDashboard';
@@ -39,6 +40,7 @@ function App() {
                 {/* Public Routes */}
                 <Route path="/" element={<DefaultRoute />} />
                 <Route path="/auth" element={<AuthPage />} />
+                <Route path="/how-it-works" element={<HowItWorksPage />} />
                 <Route path="/impact" element={<ImpactPage />} />
 
                 {/* Restaurant Routes */}
