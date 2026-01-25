@@ -5,3 +5,4 @@ frontend_key.txt
 .env
 .env.local
 .env.*.local
+debug.log
