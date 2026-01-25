@@ -1,0 +1,7 @@
+
+# API Keys and Secrets
+backend_key.txt
+frontend_key.txt
+.env
+.env.local
+.env.*.local
