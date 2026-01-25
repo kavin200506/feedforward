@@ -29,6 +29,7 @@ public class NotificationService {
     private static final Logger logger = LoggerFactory.getLogger(NotificationService.class);
 
     private final SmsService smsService;
+    private final EmailService emailService;
     private final NgoRepository ngoRepository;
     private final RestaurantRepository restaurantRepository;
     private final MatchingAlgorithmService matchingAlgorithmService;
@@ -141,6 +142,58 @@ public class NotificationService {
         }
 
         return message;
+    }
+
+    /**
+     * Build email message for food availability
+     */
+    private String buildFoodAvailableEmail(
+            String restaurantName,
+            String foodName,
+            Integer quantity,
+            String category,
+            String unit,
+            long hoursLeft,
+            String urgency,
+            String restaurantAddress,
+            String restaurantPhone
+    ) {
+        StringBuilder email = new StringBuilder();
+        email.append("Hello,\n\n");
+        email.append("We have exciting news! ").append(restaurantName).append(" has listed surplus food that matches your needs.\n\n");
+        
+        email.append("📦 Food Details:\n");
+        email.append("   • Food Name: ").append(foodName).append("\n");
+        email.append("   • Quantity: ").append(quantity).append(" ").append(unit != null ? unit : "servings").append("\n");
+        email.append("   • Category: ").append(category).append("\n");
+        email.append("   • Time Remaining: ").append(hoursLeft).append(" hours\n");
+        
+        if (!urgency.isEmpty()) {
+            email.append("   • Urgency: ").append(urgency).append("\n");
+        }
+        
+        email.append("\n");
+        email.append("📍 Restaurant Information:\n");
+        email.append("   • Name: ").append(restaurantName).append("\n");
+        if (restaurantAddress != null && !restaurantAddress.isEmpty()) {
+            email.append("   • Address: ").append(restaurantAddress).append("\n");
+        }
+        if (restaurantPhone != null && !restaurantPhone.isEmpty()) {
+            email.append("   • Phone: ").append(restaurantPhone).append("\n");
+        }
+        
+        email.append("\n");
+        email.append("🚀 Next Steps:\n");
+        email.append("1. Login to ").append(appName).append(" at ").append(baseUrl).append("\n");
+        email.append("2. Browse available food listings\n");
+        email.append("3. Request the food you need\n");
+        email.append("4. Coordinate pickup with the restaurant\n\n");
+        
+        email.append("Thank you for being part of the FeedForward community!\n\n");
+        email.append("Best regards,\n");
+        email.append("The FeedForward Team");
+        
+        return email.toString();
     }
 
     /**
@@ -507,6 +560,7 @@ public class NotificationService {
         logger.info("📱 Phone numbers to send SMS: {}", phoneNumbers);
 
         // Send SMS in bulk
+        int smsCount = 0;
         if (!phoneNumbers.isEmpty()) {
             logger.info("📱 Attempting to send SMS to {} phone numbers", phoneNumbers.size());
             boolean smsSent = smsService.sendSms(phoneNumbers, smsMessage);
@@ -514,9 +568,7 @@ public class NotificationService {
                 // Note: smsSent=true means at least one SMS was sent successfully
                 // Some may have failed (e.g., unverified numbers on trial account)
                 logger.info("✅ SMS sent successfully to at least one NGO (some may have failed if unverified)");
-                // Return the count of phone numbers we attempted to send to
-                // The actual success count is logged by SmsService
-                return phoneNumbers.size();
+                smsCount = phoneNumbers.size();
             } else {
                 logger.error("❌ Failed to send SMS to all {} NGOs", phoneNumbers.size());
                 logger.error("💡 Check logs above for details. If using Twilio Trial account, verify numbers at:");
@@ -531,7 +583,57 @@ public class NotificationService {
             });
         }
 
-        return 0;
+        // Send Emails to registered NGOs
+        List<String> emailAddresses = ngos.stream()
+                .map(NgoWithContactResponse::getEmail)
+                .filter(email -> email != null && !email.isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
+
+        List<String> ngoNames = ngos.stream()
+                .map(NgoWithContactResponse::getOrganizationName)
+                .filter(name -> name != null && !name.isEmpty())
+                .collect(Collectors.toList());
+
+        int emailCount = 0;
+        if (!emailAddresses.isEmpty()) {
+            // Build email subject and message
+            String emailSubject = String.format("🍽️ Food Available: %s from %s", 
+                    foodListing.getFoodName(), restaurant.getOrganizationName());
+            
+            String emailMessage = buildFoodAvailableEmail(
+                    restaurant.getOrganizationName(),
+                    foodListing.getFoodName(),
+                    foodListing.getQuantity(),
+                    foodListing.getCategory().getDisplayName(),
+                    foodListing.getUnit(),
+                    hoursUntilExpiry,
+                    urgency,
+                    restaurant.getAddress(),
+                    restaurant.getUser() != null ? restaurant.getUser().getPhone() : null
+            );
+
+            logger.info("📧 Attempting to send emails to {} NGOs", emailAddresses.size());
+            logger.info("📧 Email addresses: {}", emailAddresses);
+            emailCount = emailService.sendBulkEmails(emailAddresses, emailSubject, emailMessage, ngoNames);
+            if (emailCount > 0) {
+                logger.info("✅ Email sent successfully to {} NGOs (top 10)", emailCount);
+            } else {
+                logger.error("❌ Email sending failed for all {} NGOs. Check EmailJS configuration and logs above.", emailAddresses.size());
+                logger.error("💡 Common issues:");
+                logger.error("   1. EmailJS service_id or template_id not configured");
+                logger.error("   2. Invalid email addresses");
+                logger.error("   3. EmailJS API errors (check logs above for details)");
+            }
+        } else {
+            logger.warn("⚠️ No valid email addresses found in {} NGOs", ngos.size());
+            logger.warn("📧 NGO email addresses: {}", ngos.stream()
+                    .map(ngo -> ngo.getOrganizationName() + " -> " + ngo.getEmail())
+                    .collect(Collectors.joining(", ")));
+        }
+
+        // Return total notification count (SMS + Email)
+        return Math.max(smsCount, emailCount);
     }
 
     /**
