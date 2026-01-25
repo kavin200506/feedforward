@@ -23,6 +23,8 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
 
   const [suggestedNgos, setSuggestedNgos] = useState([]);
   const [nearbyNgoPlaces, setNearbyNgoPlaces] = useState([]);
+  const [top5RegisteredNgos, setTop5RegisteredNgos] = useState([]);
+  const [notifiedCount, setNotifiedCount] = useState(0);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
@@ -89,19 +91,30 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
         description: formData.description,
       };
 
-      const apiResponse = await foodListingService.addFoodListing(payload);
-      const listing = apiResponse?.data || apiResponse;
+      // Use new endpoint that returns top 5 organizations with contact info
+      const apiResponse = await foodListingService.addFoodListingWithNearby(payload);
+      const response = apiResponse?.data || apiResponse;
+
+      const listing = response?.foodListing;
+      const nearbyOrgs = response?.nearbyOrganizations;
 
       const suggested = listing?.suggestedNgos || [];
-      const places = listing?.nearbyNgoPlaces || [];
+      const places = nearbyOrgs?.unregisteredNgos || [];
+      const top5Registered = nearbyOrgs?.registeredNgos || [];
+      const notifiedCount = nearbyOrgs?.notifiedCount || 0;
 
-      // Show success modal if we have anything to show
-      if (suggested.length > 0 || places.length > 0) {
+      // Show SMS notification confirmation
+      showSuccess(`Food listing added successfully! 📱 SMS sent to ${notifiedCount} nearby NGOs (top 5).`);
+
+      // Show success modal if we have organizations to show
+      if (top5Registered.length > 0 || places.length > 0 || suggested.length > 0) {
         setSuggestedNgos(suggested);
         setNearbyNgoPlaces(places);
+        // Store top 5 registered NGOs with contact info
+        setTop5RegisteredNgos(top5Registered);
+        setNotifiedCount(notifiedCount);
         setShowSuccessModal(true);
       } else {
-        showSuccess('Food listing added successfully!');
         handleClose();
         if (onSuccess) onSuccess();
       }
@@ -130,6 +143,8 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
     setErrors({});
     setSuggestedNgos([]);
     setNearbyNgoPlaces([]);
+    setTop5RegisteredNgos([]);
+    setNotifiedCount(0);
     setShowSuccessModal(false);
     onClose();
   };
@@ -167,12 +182,109 @@ const AddFoodModal = ({ isOpen, onClose, onSuccess }) => {
         <div className="success-modal-content">
           <div className="success-icon">✅</div>
           <h3>Your food has been listed!</h3>
-          <p>
-            We found <strong>{suggestedNgos.length}</strong> registered NGOs and{' '}
-            <strong>{nearbyNgoPlaces.length}</strong> nearby NGOs (Google) that might need this food.
-          </p>
           
-          <NearbyNgosCard registeredNgos={suggestedNgos} unregisteredNgos={nearbyNgoPlaces} />
+          {/* SMS Notification Indicator */}
+          {notifiedCount > 0 && (
+            <div className="sms-notification-indicator">
+              <div className="sms-icon">📱</div>
+              <div className="sms-info">
+                <p className="sms-title">SMS Notifications Sent</p>
+                <p className="sms-count">Top {notifiedCount} nearby NGOs notified via SMS</p>
+              </div>
+              <div className="sms-checkmark">✅</div>
+            </div>
+          )}
+          
+          {/* Top 5 Registered NGOs Section */}
+          {top5RegisteredNgos.length > 0 && (
+            <div className="top5-section">
+              <h4 className="section-title">✅ Top 5 Registered NGOs (Notified)</h4>
+              <div className="organizations-grid">
+                {top5RegisteredNgos.map((ngo, index) => (
+                  <div key={ngo.ngoId} className="organization-card registered">
+                    <div className="card-header">
+                      <span className="rank-badge">#{index + 1}</span>
+                      <h5>{ngo.organizationName}</h5>
+                      <span className="distance-badge green">{ngo.distanceKm} km</span>
+                    </div>
+                    <div className="card-body">
+                      <div className="contact-info">
+                        {ngo.phone && (
+                          <div className="contact-item">
+                            <span className="icon">📞</span>
+                            <span className="value">{ngo.phone}</span>
+                          </div>
+                        )}
+                        {ngo.email && (
+                          <div className="contact-item">
+                            <span className="icon">📧</span>
+                            <span className="value">{ngo.email}</span>
+                          </div>
+                        )}
+                      </div>
+                      <p className="address">📍 {ngo.address}</p>
+                      <div className="ngo-stats">
+                        <span>👥 {ngo.beneficiariesCount} beneficiaries</span>
+                        {ngo.dietaryRequirements && (
+                          <span>🥗 {ngo.dietaryRequirements}</span>
+                        )}
+                      </div>
+                      {index < notifiedCount && (
+                        <div className="notified-badge">✅ SMS Sent</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* Unregistered NGOs Section */}
+          {nearbyNgoPlaces.length > 0 && (
+            <div className="top5-section">
+              <h4 className="section-title">📧 Nearby NGOs (Not on Platform)</h4>
+              <p className="section-subtitle">These NGOs could benefit from your donations. Invite them to join!</p>
+              <div className="organizations-grid">
+                {nearbyNgoPlaces.slice(0, 5).map((ngo, index) => (
+                  <div key={ngo.placeId || index} className="organization-card unregistered">
+                    <div className="card-header">
+                      <span className="rank-badge gray">#{index + 1}</span>
+                      <h5>{ngo.name}</h5>
+                      <span className="distance-badge orange">{ngo.distanceKm} km</span>
+                    </div>
+                    <div className="card-body">
+                      {/* Contact Info from Google Places */}
+                      {(ngo.phoneNumber || ngo.website) && (
+                        <div className="contact-info">
+                          {ngo.phoneNumber && (
+                            <div className="contact-item">
+                              <span className="icon">📞</span>
+                              <span className="value">{ngo.phoneNumber}</span>
+                            </div>
+                          )}
+                          {ngo.website && (
+                            <div className="contact-item">
+                              <span className="icon">🌐</span>
+                              <a href={ngo.website} target="_blank" rel="noopener noreferrer" className="value">
+                                Website
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <p className="address">📍 {ngo.vicinity}</p>
+                      <div className="not-registered-badge">Not on FeedForward</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* Legacy NearbyNgosCard for backward compatibility */}
+          {(suggestedNgos.length > 0 || nearbyNgoPlaces.length > 0) && (
+            <NearbyNgosCard registeredNgos={suggestedNgos} unregisteredNgos={nearbyNgoPlaces} />
+          )}
           
           <Button variant="primary" fullWidth onClick={handleSuccessClose}>
             Got it!

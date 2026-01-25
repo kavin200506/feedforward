@@ -65,6 +65,10 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, Long> {
             "WHERE r.user.isActive = true AND fl.status = 'AVAILABLE' " +
             "AND fl.expiryTime > CURRENT_TIMESTAMP")
     List<Restaurant> findRestaurantsWithActiveListings();
+
+    // Find all restaurants with user relationship loaded (for notifications)
+    @Query("SELECT r FROM Restaurant r JOIN FETCH r.user WHERE r.user.isActive = true")
+    List<Restaurant> findAllWithUser();
 }
 
 

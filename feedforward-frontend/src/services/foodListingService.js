@@ -11,6 +11,16 @@ class FoodListingService {
     }
   }
 
+  // Add food listing with top 5 nearby organizations
+  async addFoodListingWithNearby(listingData) {
+    try {
+      const response = await axiosInstance.post('/restaurant/listings/with-nearby', listingData);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || error.message || 'Failed to add food listing';
+    }
+  }
+
   // Get my listings (Restaurant)
   async getMyListings() {
     try {

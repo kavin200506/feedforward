@@ -141,6 +141,67 @@
   margin: 0;
 }
 
+/* SMS Notification Indicator */
+.sms-notification-indicator {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+  border: 2px solid #10b981;
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+  margin: 1.5rem 0;
+  width: 100%;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sms-icon {
+  font-size: 2rem;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.sms-info {
+  flex: 1;
+  text-align: left;
+}
+
+.sms-title {
+  font-weight: 600;
+  color: #047857;
+  margin: 0;
+  font-size: var(--font-size-base);
+}
+
+.sms-count {
+  font-size: 0.9rem;
+  color: #059669;
+  margin: 0.25rem 0 0 0;
+}
+
+.sms-checkmark {
+  font-size: 1.5rem;
+}
+
 /* Responsive */
 @media (max-width: 576px) {
   .form-row {
@@ -148,6 +209,177 @@
   }
 
   .checkbox-options {
+    grid-template-columns: 1fr;
+  }
+
+  .sms-notification-indicator {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .sms-info {
+    text-align: center;
+  }
+}
+
+/* Top 5 Organizations Section */
+.top5-section {
+  margin: 2rem 0;
+  width: 100%;
+}
+
+.top5-section .section-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 1rem;
+}
+
+.section-subtitle {
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+
+.organizations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.organization-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.organization-card.registered {
+  border: 2px solid #10b981;
+}
+
+.organization-card.unregistered {
+  border: 2px solid #f97316;
+}
+
+.organization-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.organization-card .card-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.rank-badge {
+  background: #10b981;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.rank-badge.gray {
+  background: #6b7280;
+}
+
+.organization-card .card-header h5 {
+  flex: 1;
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--color-text-primary);
+}
+
+.distance-badge.green {
+  background: #d1fae5;
+  color: #047857;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.distance-badge.orange {
+  background: #fed7aa;
+  color: #c2410c;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.organization-card .card-body {
+  margin-top: 1rem;
+}
+
+.organization-card .contact-info {
+  background: #f9fafb;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.organization-card .contact-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.organization-card .contact-item .icon {
+  font-size: 1.2rem;
+}
+
+.organization-card .contact-item .value {
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+.organization-card .address {
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+  margin: 0.5rem 0;
+}
+
+.organization-card .ngo-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1rem 0;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
+.notified-badge {
+  display: inline-block;
+  background: #d1fae5;
+  color: #047857;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+.not-registered-badge {
+  display: inline-block;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin: 0.5rem 0;
+}
+
+@media (max-width: 768px) {
+  .organizations-grid {
     grid-template-columns: 1fr;
   }
 }

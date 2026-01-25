@@ -67,6 +67,10 @@ public interface NgoRepository extends JpaRepository<Ngo, Long> {
             "(n.dietaryRequirements IS NULL OR " +
             "n.dietaryRequirements LIKE CONCAT('%', :dietaryInfo, '%'))")
     List<Ngo> findByDietaryMatch(@Param("dietaryInfo") String dietaryInfo);
+
+    // Find all NGOs with user relationship loaded (for notifications)
+    @Query("SELECT n FROM Ngo n JOIN FETCH n.user WHERE n.user.isActive = true")
+    List<Ngo> findAllWithUser();
 }
 
 

@@ -112,6 +112,18 @@ const ngoService = {
   },
 
   /**
+   * Notify nearby restaurants of urgent need
+   */
+  notifyNearbyRestaurants: async (requestData) => {
+    try {
+      const response = await api.post('/ngo/notify-nearby-restaurants', requestData);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
    * Rate a restaurant after transaction
    */
   rateRestaurant: async (ratingData) => {

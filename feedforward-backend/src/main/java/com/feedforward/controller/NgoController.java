@@ -1,12 +1,19 @@
 package com.feedforward.controller;
 
 import com.feedforward.dto.request.SearchFoodRequest;
+import com.feedforward.dto.request.UrgentNeedRequest;
 import com.feedforward.dto.response.ApiResponse;
 import com.feedforward.dto.response.FoodListingResponse;
+import com.feedforward.dto.response.NearbyRestaurantsResponse;
 import com.feedforward.dto.response.NgoDashboardResponse;
 import com.feedforward.dto.response.SearchFoodWithNearbyResponse;
+import com.feedforward.entity.Ngo;
+import com.feedforward.exception.ResourceNotFoundException;
+import com.feedforward.repository.NgoRepository;
 import com.feedforward.service.DashboardService;
 import com.feedforward.service.FoodListingService;
+import com.feedforward.service.NotificationService;
+import com.feedforward.util.SecurityUtil;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -27,6 +34,8 @@ public class NgoController {
 
     private final FoodListingService foodListingService;
     private final DashboardService dashboardService;
+    private final NotificationService notificationService;
+    private final NgoRepository ngoRepository;
 
     /**
      * Get NGO dashboard
@@ -86,6 +95,34 @@ public class NgoController {
         SearchFoodWithNearbyResponse results = foodListingService.searchFoodWithNearby(request);
 
         return ResponseEntity.ok(ApiResponse.success(results));
+    }
+
+    /**
+     * Get nearby restaurants and notify them of urgent need
+     * POST /api/ngo/notify-nearby-restaurants
+     */
+    @PostMapping("/notify-nearby-restaurants")
+    public ResponseEntity<ApiResponse<NearbyRestaurantsResponse>> notifyNearbyRestaurants(
+            @Valid @RequestBody UrgentNeedRequest request
+    ) {
+        logger.info("NGO notify nearby restaurants request: quantity={}, preference={}",
+                request.getQuantityNeeded(), request.getFoodPreference());
+
+        Long userId = SecurityUtil.getCurrentUserId();
+        Ngo ngo = ngoRepository.findByUser_UserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("NGO not found"));
+
+        // Get nearby restaurants and send notifications
+        NearbyRestaurantsResponse nearbyRestaurants = notificationService.getAndNotifyNearbyRestaurants(
+                ngo,
+                request.getQuantityNeeded(),
+                request.getFoodPreference()
+        );
+
+        String message = String.format("Notified %d nearby restaurants (top 5)",
+                nearbyRestaurants.getNotifiedCount());
+
+        return ResponseEntity.ok(ApiResponse.success(message, nearbyRestaurants));
     }
 
     /**

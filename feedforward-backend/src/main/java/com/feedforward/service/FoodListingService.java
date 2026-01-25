@@ -2,6 +2,7 @@ package com.feedforward.service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -15,7 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.feedforward.dto.request.FoodListingRequest;
 import com.feedforward.dto.request.SearchFoodRequest;
 import com.feedforward.dto.response.FoodListingResponse;
+import com.feedforward.dto.response.FoodListingWithNearbyResponse;
 import com.feedforward.dto.response.NearbyNgoPlaceResponse;
+import com.feedforward.dto.response.NearbyOrganizationsResponse;
 import com.feedforward.dto.response.NearbyRestaurantResponse;
 import com.feedforward.dto.response.SearchFoodWithNearbyResponse;
 import com.feedforward.dto.response.SuggestedNgoResponse;
@@ -45,9 +48,76 @@ public class FoodListingService {
     private final NgoRepository ngoRepository;
     private final MatchingAlgorithmService matchingAlgorithmService;
     private final GooglePlacesService googlePlacesService;
+    private final NotificationService notificationService;
 
     /**
-     * Add new food listing (Restaurant only)
+     * Add new food listing with top 5 nearby organizations (Restaurant only)
+     */
+    @Transactional
+    public FoodListingWithNearbyResponse addFoodListingWithNearby(FoodListingRequest request) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        logger.info("Adding food listing with nearby organizations for user: {}", userId);
+
+        // Get restaurant
+        Restaurant restaurant = restaurantRepository.findByUser_UserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Restaurant not found"));
+
+        // Validate dates
+        validateListingDates(request);
+
+        // Create food listing
+        FoodListing listing = FoodListing.builder()
+                .restaurant(restaurant)
+                .foodName(request.getFoodName())
+                .category(request.getCategory())
+                .quantity(request.getQuantity())
+                .unit(request.getUnit())
+                .preparedTime(request.getPreparedTime())
+                .expiryTime(request.getExpiryTime())
+                .dietaryInfo(request.getDietaryInfo())
+                .description(request.getDescription())
+                .status(ListingStatus.AVAILABLE)
+                .build();
+
+        // Calculate urgency (done in @PrePersist)
+        listing = foodListingRepository.save(listing);
+        logger.info("Food listing created with ID: {}", listing.getListingId());
+
+        // ✨ Get top 5 registered + top 5 unregistered NGOs and send SMS to top 5 registered
+        NearbyOrganizationsResponse nearbyOrganizations = null;
+        try {
+            nearbyOrganizations = notificationService.getAndNotifyNearbyNgos(listing, restaurant);
+            logger.info("SMS notifications sent to {} nearby NGOs (top 5)", nearbyOrganizations.getNotifiedCount());
+        } catch (Exception e) {
+            // Log error but don't fail the listing creation
+            logger.error("Failed to send SMS notifications: {}", e.getMessage(), e);
+            nearbyOrganizations = NearbyOrganizationsResponse.builder()
+                    .registeredNgos(new ArrayList<>())
+                    .unregisteredNgos(new ArrayList<>())
+                    .notifiedCount(0)
+                    .build();
+        }
+
+        // Find suggested NGOs (for backward compatibility)
+        List<SuggestedNgoResponse> suggestedNgos = matchingAlgorithmService
+                .findMatchingNgos(listing);
+
+        // Use top 5 from nearbyOrganizations if available
+        List<NearbyNgoPlaceResponse> nearbyNgoPlaces = nearbyOrganizations != null && 
+                nearbyOrganizations.getUnregisteredNgos() != null ? 
+                nearbyOrganizations.getUnregisteredNgos() : new ArrayList<>();
+
+        // Build response
+        FoodListingResponse listingResponse = buildFoodListingResponse(listing, 0.0, suggestedNgos, null, nearbyNgoPlaces);
+        
+        return FoodListingWithNearbyResponse.builder()
+                .foodListing(listingResponse)
+                .nearbyOrganizations(nearbyOrganizations)
+                .build();
+    }
+
+    /**
+     * Add new food listing (Restaurant only) - backward compatible
      */
     @Transactional
     public FoodListingResponse addFoodListing(FoodListingRequest request) {
@@ -79,33 +149,36 @@ public class FoodListingService {
         listing = foodListingRepository.save(listing);
         logger.info("Food listing created with ID: {}", listing.getListingId());
 
-        // Find suggested NGOs
+        // ✨ Get top 5 registered + top 5 unregistered NGOs and send SMS to top 5 registered
+        NearbyOrganizationsResponse nearbyOrganizations = null;
+        try {
+            nearbyOrganizations = notificationService.getAndNotifyNearbyNgos(listing, restaurant);
+            logger.info("SMS notifications sent to {} nearby NGOs (top 5)", nearbyOrganizations.getNotifiedCount());
+        } catch (Exception e) {
+            // Log error but don't fail the listing creation
+            logger.error("Failed to send SMS notifications: {}", e.getMessage(), e);
+        }
+
+        // Find suggested NGOs (for backward compatibility)
         List<SuggestedNgoResponse> suggestedNgos = matchingAlgorithmService
                 .findMatchingNgos(listing);
 
-        // Find nearby NGO-like organizations via Google Places (may include unregistered)
-        List<NearbyNgoPlaceResponse> nearbyNgoPlaces = googlePlacesService.findNearbyNgoPlaces(
-                restaurant.getLatitude().doubleValue(),
-                restaurant.getLongitude().doubleValue()
-        );
+        // Use top 5 from nearbyOrganizations if available, otherwise fallback to old method
+        List<NearbyNgoPlaceResponse> nearbyNgoPlaces = null;
+        if (nearbyOrganizations != null && nearbyOrganizations.getUnregisteredNgos() != null) {
+            nearbyNgoPlaces = nearbyOrganizations.getUnregisteredNgos();
+        } else {
+            // Fallback to old method
+            nearbyNgoPlaces = googlePlacesService.findNearbyNgoPlaces(
+                    restaurant.getLatitude().doubleValue(),
+                    restaurant.getLongitude().doubleValue()
+            );
+        }
 
-        // Filter out Google results that look like already-registered suggestions (best-effort by name)
-        Set<String> registeredNames = suggestedNgos == null ? Set.of() :
-                suggestedNgos.stream()
-                        .map(SuggestedNgoResponse::getName)
-                        .filter(Objects::nonNull)
-                        .map(n -> n.trim().toLowerCase())
-                        .collect(Collectors.toSet());
-
-        List<NearbyNgoPlaceResponse> filteredPlaces = nearbyNgoPlaces == null ? null :
-                nearbyNgoPlaces.stream()
-                        .filter(p -> {
-                            String n = p.getName() == null ? "" : p.getName().trim().toLowerCase();
-                            return n.isBlank() || !registeredNames.contains(n);
-                        })
-                        .collect(Collectors.toList());
-
-        return buildFoodListingResponse(listing, 0.0, suggestedNgos, null, filteredPlaces);
+        // Build response with top 5 organizations
+        FoodListingResponse listingResponse = buildFoodListingResponse(listing, 0.0, suggestedNgos, null, nearbyNgoPlaces);
+        
+        return listingResponse;
     }
 
     /**

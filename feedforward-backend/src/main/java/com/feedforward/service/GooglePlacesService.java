@@ -27,6 +27,9 @@ public class GooglePlacesService {
     @Value("${google.places.nearby-search-url:https://maps.googleapis.com/maps/api/place/nearbysearch/json}")
     private String nearbySearchUrl;
 
+    @Value("${google.places.details-url:https://maps.googleapis.com/maps/api/place/details/json}")
+    private String placeDetailsUrl;
+
     @Value("${google.places.radius-meters:5000}")
     private int radiusMeters;
 
@@ -107,7 +110,6 @@ public class GooglePlacesService {
                             restaurantLat, restaurantLng, lat, lng
                     );
 
-                    // Provide a stable Maps URL for inviting / viewing.
                     String mapsUrl = "https://www.google.com/maps/search/?api=1&query_place_id=" + placeId;
 
                     byPlaceId.putIfAbsent(placeId, NearbyNgoPlaceResponse.builder()
@@ -128,9 +130,84 @@ public class GooglePlacesService {
         }
 
         // Sort by distance, closest first
-        return byPlaceId.values().stream()
+        List<NearbyNgoPlaceResponse> sortedPlaces = byPlaceId.values().stream()
                 .sorted(Comparator.comparingDouble(p -> p.getDistanceKm() != null ? p.getDistanceKm() : Double.MAX_VALUE))
                 .toList();
+
+        // Fetch phone numbers for top 5 places using Place Details API
+        // Limit to top 5 to avoid excessive API calls
+        List<NearbyNgoPlaceResponse> top5Places = sortedPlaces.stream()
+                .limit(5)
+                .map(this::enrichWithPlaceDetails)
+                .toList();
+
+        // Combine top 5 (with details) + rest (without details)
+        List<NearbyNgoPlaceResponse> result = new ArrayList<>(top5Places);
+        if (sortedPlaces.size() > 5) {
+            result.addAll(sortedPlaces.subList(5, sortedPlaces.size()));
+        }
+
+        return result;
+    }
+
+    /**
+     * Fetch phone number and website for a place using Place Details API
+     */
+    @SuppressWarnings("unchecked")
+    private NearbyNgoPlaceResponse enrichWithPlaceDetails(NearbyNgoPlaceResponse place) {
+        if (place.getPlaceId() == null || place.getPlaceId().isBlank()) {
+            return place;
+        }
+
+        try {
+            String url = UriComponentsBuilder
+                    .fromHttpUrl(placeDetailsUrl)
+                    .queryParam("place_id", place.getPlaceId())
+                    .queryParam("fields", "formatted_phone_number,international_phone_number,website")
+                    .queryParam("key", apiKey)
+                    .toUriString();
+
+            Map<String, Object> response = restTemplate.getForObject(url, Map.class);
+            if (response == null) return place;
+
+            String status = Objects.toString(response.get("status"), "UNKNOWN");
+            if (!"OK".equals(status)) {
+                logger.debug("Place Details API returned status={} for place_id={}", status, place.getPlaceId());
+                return place;
+            }
+
+            Object resultObj = response.get("result");
+            if (!(resultObj instanceof Map<?, ?> result)) return place;
+
+            // Extract phone number (prefer formatted, fallback to international)
+            String phoneNumber = Objects.toString(result.get("formatted_phone_number"), null);
+            if (phoneNumber == null || phoneNumber.isBlank()) {
+                phoneNumber = Objects.toString(result.get("international_phone_number"), null);
+            }
+
+            // Extract website
+            String website = Objects.toString(result.get("website"), null);
+
+            // Update place with additional details
+            return NearbyNgoPlaceResponse.builder()
+                    .placeId(place.getPlaceId())
+                    .name(place.getName())
+                    .vicinity(place.getVicinity())
+                    .latitude(place.getLatitude())
+                    .longitude(place.getLongitude())
+                    .distanceKm(place.getDistanceKm())
+                    .mapsUrl(place.getMapsUrl())
+                    .phoneNumber(phoneNumber)
+                    .website(website)
+                    .build();
+
+        } catch (RestClientException ex) {
+            logger.warn("Failed to fetch place details for place_id {}: {}", place.getPlaceId(), ex.getMessage());
+            return place;
+        } catch (Exception ex) {
+            logger.warn("Unexpected error fetching place details for place_id {}: {}", place.getPlaceId(), ex.getMessage());
+            return place;
+        }
     }
 
     /**
