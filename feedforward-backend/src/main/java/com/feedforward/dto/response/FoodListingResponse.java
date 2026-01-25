@@ -45,6 +45,7 @@ public class FoodListingResponse {
     // Statistics
     private Integer requestCount;
     private List<SuggestedNgoResponse> suggestedNgos;
+    private List<NearbyNgoPlaceResponse> nearbyNgoPlaces; // Google Places results (may include unregistered NGOs)
 }
 
 

@@ -3,12 +3,20 @@ import './Loader.css';
 
 const Loader = ({ size = 'medium', text, fullScreen = false }) => {
   const loaderClasses = `loader loader-${size}`;
+  
+  const loadingDots = (
+    <div className="loading-dots">
+      <div className="dot"></div>
+      <div className="dot"></div>
+      <div className="dot"></div>
+    </div>
+  );
 
   if (fullScreen) {
     return (
       <div className="loader-fullscreen">
         <div className={loaderClasses}>
-          <div className="spinner-large"></div>
+          {loadingDots}
           {text && <p className="loader-text">{text}</p>}
         </div>
       </div>
@@ -17,7 +25,7 @@ const Loader = ({ size = 'medium', text, fullScreen = false }) => {
 
   return (
     <div className={loaderClasses}>
-      <div className={`spinner ${size === 'large' ? 'spinner-large' : ''}`}></div>
+      {loadingDots}
       {text && <p className="loader-text">{text}</p>}
     </div>
   );

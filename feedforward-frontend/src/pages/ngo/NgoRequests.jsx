@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ngoService } from '../../services';
 import { useNotification } from '../../context/NotificationContext';
-import { Card, Button, Badge, Loader } from '../../components/common';
+import { Card, Button, Badge, Skeleton } from '../../components/common';
 import { FiMapPin, FiPhone, FiClock, FiCheckCircle } from 'react-icons/fi';
 import { formatDateTime, getStatusColor } from '../../utils/helpers';
 import './NgoRequests.css';
@@ -18,36 +18,95 @@ const NgoRequests = () => {
 
   useEffect(() => {
     fetchRequests();
+    
+    // Auto-refresh every 15 seconds to get updated request statuses (reduced from 30s for better UX)
+    const interval = setInterval(() => {
+      fetchRequests(true); // Silent refresh
+    }, 15000); // 15 seconds
+
+    // Refresh when window comes into focus
+    const handleFocus = () => {
+      fetchRequests();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
-  const fetchRequests = async () => {
-    setLoading(true);
+  const fetchRequests = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const data = await ngoService.getMyRequests();
       setRequests(data);
+      console.log('Requests fetched:', data);
     } catch (error) {
-      showError('Failed to load requests');
+      if (!silent) {
+        showError('Failed to load requests');
+      }
+      console.error('Fetch requests error:', error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   const handleMarkPickedUp = async (requestId) => {
     try {
-      await ngoService.markAsPickedUp(requestId);
+      console.log('Marking request as picked up:', requestId);
+      const response = await ngoService.markAsPickedUp(requestId);
+      console.log('Mark as picked up response:', response);
+      
+      // Optimistically update the UI immediately
+      setRequests(prev => ({
+        ...prev,
+        activeRequests: prev.activeRequests.map(req => 
+          req.requestId === requestId 
+            ? { ...req, status: 'PICKED_UP', pickedUpAt: new Date().toISOString() }
+            : req
+        )
+      }));
+      
       showSuccess('Marked as picked up!');
-      fetchRequests();
+      // Refresh to get latest data from server
+      await fetchRequests(true);
     } catch (error) {
-      showError('Failed to update status');
+      const errorMessage = error?.message || 
+                          error?.response?.data?.message || 
+                          error?.data?.message ||
+                          'Failed to update status';
+      console.error('Mark as picked up error:', error);
+      showError(errorMessage);
+      // Refresh to get correct state from server
+      await fetchRequests(true);
     }
   };
 
   const handleCompleteRequest = async (requestId, quantityReceived) => {
+    // Optimistically update the UI immediately
+    setRequests(prev => ({
+      ...prev,
+      activeRequests: prev.activeRequests.filter(req => req.requestId !== requestId),
+      completedRequests: [
+        ...prev.completedRequests,
+        ...prev.activeRequests.filter(req => req.requestId === requestId).map(req => ({
+          ...req,
+          status: 'COMPLETED',
+          quantityReceived,
+          completedAt: new Date().toISOString()
+        }))
+      ]
+    }));
+    
     try {
       await ngoService.completeRequest(requestId, quantityReceived);
       showSuccess('Request completed successfully!');
-      fetchRequests();
+      // Refresh to get latest data from server (silent)
+      await fetchRequests(true);
     } catch (error) {
+      // Revert optimistic update on error
+      await fetchRequests(true);
       showError('Failed to complete request');
     }
   };
@@ -55,18 +114,27 @@ const NgoRequests = () => {
   const handleCancelRequest = async (requestId) => {
     if (!window.confirm('Are you sure you want to cancel this request?')) return;
 
+    // Optimistically update the UI immediately
+    setRequests(prev => ({
+      ...prev,
+      activeRequests: prev.activeRequests.filter(req => req.requestId !== requestId)
+    }));
+
     try {
       await ngoService.cancelRequest(requestId);
       showSuccess('Request cancelled');
-      fetchRequests();
+      // Refresh to get latest data from server (silent)
+      await fetchRequests(true);
     } catch (error) {
+      // Revert optimistic update on error
+      await fetchRequests(true);
       showError('Failed to cancel request');
     }
   };
 
-  if (loading) {
-    return <Loader fullScreen text="Loading requests..." />;
-  }
+  // if (loading) {
+  //   return <Loader fullScreen text="Loading requests..." />;
+  // }
 
   const displayedRequests = activeTab === 'active' 
     ? requests.activeRequests 
@@ -100,7 +168,13 @@ const NgoRequests = () => {
 
         {/* Requests List */}
         <div className="requests-list">
-          {displayedRequests && displayedRequests.length > 0 ? (
+          {loading ? (
+             <>
+               <Skeleton type="card" height="200px" style={{ marginBottom: '1rem' }} />
+               <Skeleton type="card" height="200px" style={{ marginBottom: '1rem' }} />
+               <Skeleton type="card" height="200px" style={{ marginBottom: '1rem' }} />
+             </>
+          ) : displayedRequests && displayedRequests.length > 0 ? (
             displayedRequests.map((request) => (
               <Card key={request.requestId} className="request-card-full">
                 <div className="request-card-header">

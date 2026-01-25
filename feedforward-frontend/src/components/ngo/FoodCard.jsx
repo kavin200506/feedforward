@@ -2,21 +2,21 @@ import React from 'react';
 import { Card, Badge, Button } from '../common';
 import { FiMapPin, FiClock, FiPackage, FiStar } from 'react-icons/fi';
 import { formatTimeRemaining, calculateUrgency } from '../../utils/helpers';
+import { FOOD_CATEGORIES } from '../../utils/constants';
 import './FoodCard.css';
 
 const FoodCard = ({ food, onRequest }) => {
   const urgency = calculateUrgency(food.expiryTime);
   
   const getCategoryEmoji = (category) => {
-    const emojiMap = {
-      'Cooked Rice': '🍚',
-      'Vegetables': '🥗',
-      'Bread': '🍞',
-      'Proteins': '🍗',
-      'Sweets': '🍰',
-      'Other': '📦',
-    };
-    return emojiMap[category] || '🍽️';
+    if (food?.categoryEmoji) return food.categoryEmoji;
+    const fromConstants = FOOD_CATEGORIES.find((c) => c.value === category);
+    return fromConstants?.emoji || '🍽️';
+  };
+
+  const getCategoryLabel = (category) => {
+    const fromConstants = FOOD_CATEGORIES.find((c) => c.value === category);
+    return fromConstants?.label?.replace(/^[^\s]+\s/, '') || category; // strip emoji from label for text
   };
 
   return (
@@ -44,7 +44,7 @@ const FoodCard = ({ food, onRequest }) => {
         <h3 className="food-card-title">{food.foodName}</h3>
         <div className="food-card-category">
           <Badge variant="default" size="small">
-            {food.category}
+            {getCategoryLabel(food.category)}
           </Badge>
         </div>
 

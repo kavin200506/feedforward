@@ -26,11 +26,29 @@ const ngoService = {
   },
 
   /**
+   * Search available food with nearby unregistered restaurants
+   */
+  searchFoodWithNearby: async (filters = {}) => {
+    try {
+      const response = await api.post('/ngo/search-with-nearby', {
+        distance: filters.distance || 10,
+        category: filters.category ? (Array.isArray(filters.category) ? filters.category[0] : filters.category) : null,
+        urgencyLevel: filters.urgency ? (Array.isArray(filters.urgency) ? filters.urgency[0] : filters.urgency) : null,
+        searchTerm: filters.search || null,
+        sortBy: filters.sortBy || 'expiry',
+      });
+      return response.data?.data || response.data || {};
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
    * Request food from restaurant
    */
   requestFood: async (requestData) => {
     try {
-      const response = await api.post('/ngos/requests', requestData);
+      const response = await api.post('/requests', requestData);
       return response;
     } catch (error) {
       throw error;
@@ -46,9 +64,17 @@ const ngoService = {
       // Handle response structure: response.data.data or response.data
       const requests = response.data?.data || response.data || response || [];
       // Separate active and completed requests
+      // Active: PENDING, APPROVED, PICKED_UP (anything not COMPLETED or CANCELLED)
+      // Completed: COMPLETED
       return {
-        activeRequests: requests.filter(r => r.status !== 'COMPLETED' && r.status !== 'CANCELLED') || [],
-        completedRequests: requests.filter(r => r.status === 'COMPLETED') || [],
+        activeRequests: requests.filter(r => 
+          r.status && 
+          r.status !== 'COMPLETED' && 
+          r.status !== 'CANCELLED'
+        ) || [],
+        completedRequests: requests.filter(r => 
+          r.status && r.status === 'COMPLETED'
+        ) || [],
       };
     } catch (error) {
       throw error;
@@ -60,7 +86,7 @@ const ngoService = {
    */
   markAsPickedUp: async (requestId) => {
     try {
-      const response = await api.post(`/requests/${requestId}/pickup`);
+      const response = await api.patch(`/requests/${requestId}/pickup`);
       return response;
     } catch (error) {
       throw error;
@@ -88,6 +114,18 @@ const ngoService = {
     try {
       const response = await api.post(`/requests/${requestId}/cancel`);
       return response;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
+   * Notify nearby restaurants of urgent need
+   */
+  notifyNearbyRestaurants: async (requestData) => {
+    try {
+      const response = await api.post('/ngo/notify-nearby-restaurants', requestData);
+      return response.data;
     } catch (error) {
       throw error;
     }

@@ -3,9 +3,11 @@ spring:
     name: feedforward-backend
   
   datasource:
-    url: jdbc:mysql://localhost:3306/feedforward_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=Asia/Kolkata&allowPublicKeyRetrieval=true
-    username: root
-    password: Root@1234
+    # Railway provides MYSQL_URL - if set, it will be converted to JDBC format in FeedForwardApplication
+    # Otherwise, use individual components (MYSQLHOST, MYSQLPORT, etc.) for local development
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://${MYSQLHOST:localhost}:${MYSQLPORT:3306}/${MYSQLDATABASE:feedforward_db}?createDatabaseIfNotExist=true&useSSL=${MYSQL_USE_SSL:false}&requireSSL=${MYSQL_REQUIRE_SSL:false}&serverTimezone=UTC&allowPublicKeyRetrieval=true}
+    username: ${MYSQLUSER:root}
+    password: ${MYSQLPASSWORD:Root@1234}
     driver-class-name: com.mysql.cj.jdbc.Driver
   
   jpa:
@@ -49,4 +51,49 @@ logging:
     com.feedforward: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+  file:
+    name: logs/spring.log
+    path: logs
+  pattern:
+    file: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    console: "%d{HH:mm:ss} %-5level %logger{36} - %msg%n"
+
+# Google APIs (optional)
+# Set env var GOOGLE_PLACES_API_KEY to enable nearby unregistered NGO lookup via Google Places.
+google:
+  places:
+    api-key: ${GOOGLE_PLACES_API_KEY:}
+
+# Admin Configuration
+# Set ADMIN_SECRET_KEY environment variable for admin operations
+admin:
+  secret:
+    key: ${ADMIN_SECRET_KEY:CHANGE_THIS_IN_PRODUCTION}
+    nearby-search-url: https://maps.googleapis.com/maps/api/place/nearbysearch/json
+    radius-meters: 5000
+
+# Fast2SMS Configuration (Legacy - kept for backward compatibility)
+fast2sms:
+  api:
+    key: ${FAST2SMS_API_KEY:5MPNAo2EIG37FqlzCwjvegfcOT1KX8ZUdRWtLmB6an9Yp4QbViEgksGJBhIojRFW3TQwAut4i50OZxX8}
+    url: https://www.fast2sms.com/dev/bulkV2
+  mock:
+    enabled: ${FAST2SMS_MOCK_ENABLED:false}
+  sender:
+    id: FDFWRD
+
+# Twilio SMS Configuration
+twilio:
+  account:
+    sid: ${TWILIO_ACCOUNT_SID:}
+  auth:
+    token: ${TWILIO_AUTH_TOKEN:}
+  phone:
+    number: ${TWILIO_PHONE_NUMBER:}
+  enabled: ${TWILIO_ENABLED:true}
+
+# App Configuration
+app:
+  base-url: http://localhost:3000
+  name: FeedForward
 

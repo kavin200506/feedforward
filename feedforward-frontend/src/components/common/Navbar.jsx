@@ -60,7 +60,7 @@ const Navbar = () => {
           <Link to="/" className="navbar-logo">
             <span className="logo-icon">🍽️</span>
             <span className="logo-text">FeedForward</span>
-            <span className="logo-badge">Beta</span>
+
           </Link>
 
           {/* Desktop Navigation */}

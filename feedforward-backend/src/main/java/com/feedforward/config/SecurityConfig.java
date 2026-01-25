@@ -64,6 +64,9 @@ public class SecurityConfig {
                         .requestMatchers("/public/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/impact/**").permitAll()
                         
+                        // Admin endpoints (temporary - remove in production or secure properly)
+                        .requestMatchers("/admin/**").permitAll()
+                        
                         // Restaurant endpoints
                         .requestMatchers("/restaurant/**").hasRole("RESTAURANT")
                         .requestMatchers("/food-listings/add").hasRole("RESTAURANT")

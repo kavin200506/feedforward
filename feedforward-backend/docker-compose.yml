@@ -29,6 +29,7 @@ services:
       DB_NAME: feedforward_db
       DB_USERNAME: root
       DB_PASSWORD: Root@1234
+      FAST2SMS_API_KEY: ${FAST2SMS_API_KEY}
       JWT_SECRET: your-production-jwt-secret-key-minimum-64-characters-long
     ports:
       - "8080:8080"

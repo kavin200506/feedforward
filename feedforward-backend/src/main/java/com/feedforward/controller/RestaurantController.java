@@ -3,6 +3,7 @@ package com.feedforward.controller;
 import com.feedforward.dto.request.FoodListingRequest;
 import com.feedforward.dto.response.ApiResponse;
 import com.feedforward.dto.response.FoodListingResponse;
+import com.feedforward.dto.response.FoodListingWithNearbyResponse;
 import com.feedforward.dto.response.RestaurantDashboardResponse;
 import com.feedforward.enums.ListingStatus;
 import com.feedforward.service.DashboardService;
@@ -43,7 +44,29 @@ public class RestaurantController {
     }
 
     /**
-     * Add new food listing
+     * Add new food listing with top 5 nearby organizations
+     * POST /api/restaurant/listings/with-nearby
+     */
+    @PostMapping("/listings/with-nearby")
+    public ResponseEntity<ApiResponse<FoodListingWithNearbyResponse>> addFoodListingWithNearby(
+            @Valid @RequestBody FoodListingRequest request
+    ) {
+        logger.info("Add food listing with nearby organizations request: {}", request.getFoodName());
+
+        FoodListingWithNearbyResponse response = foodListingService.addFoodListingWithNearby(request);
+
+        int notifiedCount = response.getNearbyOrganizations() != null ? 
+                response.getNearbyOrganizations().getNotifiedCount() : 0;
+        String message = String.format("Food listing added successfully. SMS sent to %d nearby NGOs (top 10).",
+                notifiedCount);
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(ApiResponse.success(message, response));
+    }
+
+    /**
+     * Add new food listing (backward compatible)
      * POST /api/restaurant/listings
      */
     @PostMapping("/listings")
@@ -127,6 +150,18 @@ public class RestaurantController {
         foodListingService.deleteListing(id);
 
         return ResponseEntity.ok(ApiResponse.success("Listing deleted successfully", null));
+    }
+
+    /**
+     * Delete ALL active listings (soft delete) for current restaurant
+     * DELETE /api/restaurant/listings/active
+     */
+    @DeleteMapping("/listings/active")
+    public ResponseEntity<ApiResponse<String>> deleteAllActiveListings() {
+        logger.info("Delete ALL active listings");
+
+        int deletedCount = foodListingService.deleteAllActiveListings();
+        return ResponseEntity.ok(ApiResponse.success("Deleted " + deletedCount + " active listings", null));
     }
 }
 

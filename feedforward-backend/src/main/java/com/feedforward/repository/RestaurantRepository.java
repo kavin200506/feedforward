@@ -13,8 +13,9 @@ import java.util.Optional;
 @Repository
 public interface RestaurantRepository extends JpaRepository<Restaurant, Long> {
 
-    // Find restaurant by user ID
-    Optional<Restaurant> findByUser_UserId(Long userId);
+    // Find restaurant by user ID (with eager fetch to prevent N+1)
+    @Query("SELECT r FROM Restaurant r JOIN FETCH r.user WHERE r.user.userId = :userId")
+    Optional<Restaurant> findByUser_UserId(@Param("userId") Long userId);
 
     // Find restaurant with user details
     @Query("SELECT r FROM Restaurant r JOIN FETCH r.user WHERE r.restaurantId = :id")
@@ -65,6 +66,10 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, Long> {
             "WHERE r.user.isActive = true AND fl.status = 'AVAILABLE' " +
             "AND fl.expiryTime > CURRENT_TIMESTAMP")
     List<Restaurant> findRestaurantsWithActiveListings();
+
+    // Find all restaurants with user relationship loaded (for notifications)
+    @Query("SELECT r FROM Restaurant r JOIN FETCH r.user WHERE r.user.isActive = true")
+    List<Restaurant> findAllWithUser();
 }
 
 

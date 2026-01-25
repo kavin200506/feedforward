@@ -5,6 +5,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import { formatTimeRemaining, calculateUrgency } from '../../utils/helpers';
 import { FiMapPin, FiPhone, FiClock, FiPackage } from 'react-icons/fi';
+import { FOOD_CATEGORIES } from '../../utils/constants';
 import './RequestFoodModal.css';
 
 const RequestFoodModal = ({ isOpen, onClose, food, onSuccess }) => {
@@ -51,18 +52,29 @@ const RequestFoodModal = ({ isOpen, onClose, food, onSuccess }) => {
 
     setLoading(true);
     try {
+      const quantityRequested = parseInt(formData.quantityRequested);
       await ngoService.requestFood({
         listingId: food.listingId,
-        quantityRequested: parseInt(formData.quantityRequested),
+        quantityRequested,
         urgencyLevel: formData.urgencyLevel,
         notes: formData.notes,
       });
 
       showSuccess('Request sent successfully! The restaurant will review it shortly.');
+      
+      // Pass requested quantity to parent for optimistic update
+      if (onSuccess) {
+        onSuccess(quantityRequested);
+      }
       handleClose();
-      if (onSuccess) onSuccess();
     } catch (error) {
-      showError(error.message || 'Failed to send request');
+      // Extract error message from API response
+      const errorMessage = error?.message || 
+                          error?.response?.data?.message || 
+                          error?.data?.message ||
+                          'An unexpected error occurred. Please try again later.';
+      console.error('Request food error:', error);
+      showError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -85,15 +97,9 @@ const RequestFoodModal = ({ isOpen, onClose, food, onSuccess }) => {
   });
 
   const getCategoryEmoji = (category) => {
-    const emojiMap = {
-      'Cooked Rice': '🍚',
-      'Vegetables': '🥗',
-      'Bread': '🍞',
-      'Proteins': '🍗',
-      'Sweets': '🍰',
-      'Other': '📦',
-    };
-    return emojiMap[category] || '🍽️';
+    if (food?.categoryEmoji) return food.categoryEmoji;
+    const fromConstants = FOOD_CATEGORIES.find((c) => c.value === category);
+    return fromConstants?.emoji || '🍽️';
   };
 
   return (

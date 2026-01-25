@@ -34,10 +34,13 @@ axiosInstance.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       // Unauthorized - clear token and redirect to login
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('userProfile');
-      localStorage.removeItem('user');
-      window.location.href = '/auth';
+      // Only redirect if not already on auth page to prevent redirect loops
+      if (!window.location.pathname.includes('/auth')) {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('userProfile');
+        localStorage.removeItem('user');
+        window.location.href = '/auth';
+      }
     }
     
     return Promise.reject(error);

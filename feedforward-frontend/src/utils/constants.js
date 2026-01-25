@@ -10,12 +10,18 @@ export const USER_ROLES = {
 
 // Food Categories
 export const FOOD_CATEGORIES = [
-  { value: 'Cooked Rice', label: '🍚 Cooked Rice', emoji: '🍚' },
-  { value: 'Vegetables', label: '🥗 Vegetables', emoji: '🥗' },
-  { value: 'Bread', label: '🍞 Bread', emoji: '🍞' },
-  { value: 'Proteins', label: '🍗 Proteins', emoji: '🍗' },
-  { value: 'Sweets', label: '🍰 Sweets', emoji: '🍰' },
-  { value: 'Other', label: '📦 Other', emoji: '📦' },
+  // IMPORTANT: value must match backend enum com.feedforward.enums.FoodCategory
+  { value: 'COOKED_RICE', label: '🍚 Cooked Rice (Biryani, Pulao, Plain Rice)', emoji: '🍚' },
+  { value: 'CURRIES', label: '🍛 Curries & Gravies (Dal, Sambar, Paneer Curry)', emoji: '🍛' },
+  { value: 'VEGETABLES', label: '🥗 Vegetables (Cooked vegetables, Salads)', emoji: '🥗' },
+  { value: 'BREAD', label: '🍞 Bread & Roti (Chapati, Naan, Parotta, Puri)', emoji: '🍞' },
+  { value: 'PROTEINS', label: '🍗 Proteins (Chicken, Fish, Eggs, Paneer dishes)', emoji: '🍗' },
+  { value: 'MIXED_MEALS', label: '🥘 Mixed Meals (Complete thalis, combo plates)', emoji: '🥘' },
+  { value: 'SWEETS', label: '🍰 Sweets & Desserts (Payasam, Halwa, Cakes)', emoji: '🍰' },
+  { value: 'FRUITS', label: '🍎 Fruits (Fresh fruits, Fruit salads)', emoji: '🍎' },
+  { value: 'BEVERAGES', label: '🥤 Beverages (Juice, Buttermilk, Tea/Coffee)', emoji: '🥤' },
+  { value: 'SNACKS', label: '🍿 Snacks (Samosa, Vada, Biscuits, Chips)', emoji: '🍿' },
+  { value: 'OTHER', label: '📦 Other (Specify in description)', emoji: '📦' },
 ];
 
 // Food Units
@@ -52,13 +58,24 @@ export const URGENCY_LEVELS = {
   LOW: { value: 'LOW', label: 'Low', color: '#8BC34A', threshold: Infinity },
 };
 
-// Dietary Information
-export const DIETARY_OPTIONS = [
-  { value: 'Vegetarian', label: '🥬 Vegetarian' },
-  { value: 'Non-Vegetarian', label: '🍖 Non-Vegetarian' },
-  { value: 'Contains Nuts', label: '🥜 Contains Nuts' },
-  { value: 'Gluten-Free', label: '🌾 Gluten-Free' },
-  { value: 'Dairy-Free', label: '🥛 Dairy-Free' },
+// Dietary Types (REQUIRED - Single Choice - Radio Buttons)
+export const DIETARY_TYPES = [
+  { value: 'Vegetarian', label: '🥬 Vegetarian', description: 'No meat, fish, or chicken' },
+  { value: 'Eggetarian', label: '🥚 Eggetarian', description: 'Contains eggs, but no meat/fish' },
+  { value: 'Non-Vegetarian', label: '🍖 Non-Vegetarian', description: 'Contains meat, fish, or chicken' },
+  { value: 'Vegan', label: '🌱 Vegan', description: 'No animal products (no dairy, eggs, honey)' },
+];
+
+// Allergen & Dietary Properties (OPTIONAL - Multi-select - Checkboxes)
+export const ALLERGEN_OPTIONS = [
+  { value: 'Contains Nuts', label: '🥜 Contains Nuts', description: 'Peanuts, Cashews, Almonds' },
+  { value: 'Contains Gluten', label: '🌾 Contains Gluten', description: 'Wheat, Barley, Rye' },
+  { value: 'Contains Dairy', label: '🥛 Contains Dairy', description: 'Milk, Cheese, Paneer, Ghee' },
+  { value: 'Contains Seafood', label: '🦐 Contains Seafood', description: 'Fish, Prawns, Crab' },
+  { value: 'Contains Eggs', label: '🥚 Contains Eggs', description: 'Contains eggs' },
+  { value: 'High Spice Level', label: '🌶️ High Spice Level', description: 'Very spicy' },
+  { value: 'High Sodium', label: '🧂 High Sodium', description: 'Salty' },
+  { value: 'High Sugar', label: '🍬 High Sugar', description: 'Sweet dishes' },
 ];
 
 // Distance Filters
