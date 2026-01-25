@@ -52,16 +52,21 @@ const RequestFoodModal = ({ isOpen, onClose, food, onSuccess }) => {
 
     setLoading(true);
     try {
+      const quantityRequested = parseInt(formData.quantityRequested);
       await ngoService.requestFood({
         listingId: food.listingId,
-        quantityRequested: parseInt(formData.quantityRequested),
+        quantityRequested,
         urgencyLevel: formData.urgencyLevel,
         notes: formData.notes,
       });
 
       showSuccess('Request sent successfully! The restaurant will review it shortly.');
+      
+      // Pass requested quantity to parent for optimistic update
+      if (onSuccess) {
+        onSuccess(quantityRequested);
+      }
       handleClose();
-      if (onSuccess) onSuccess();
     } catch (error) {
       // Extract error message from API response
       const errorMessage = error?.message || 

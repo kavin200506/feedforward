@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { dashboardService } from '../../services';
 import { FiMenu, FiX, FiLogOut, FiUser, FiSettings } from 'react-icons/fi';
 import { USER_ROLES } from '../../utils/constants';
 import './Navbar.css';
@@ -12,6 +13,9 @@ const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
+  const fetchingRef = useRef(false);
+  const lastFetchTimeRef = useRef(0);
 
   // Handle scroll effect
   useEffect(() => {
@@ -28,6 +32,66 @@ const Navbar = () => {
     setUserMenuOpen(false);
   }, [location]);
 
+  // Fetch notification count for restaurant
+  useEffect(() => {
+    if (!user || user?.role !== USER_ROLES.RESTAURANT) {
+      setNotificationCount(0);
+      return;
+    }
+
+    const fetchNotificationCount = async () => {
+      const now = Date.now();
+      if (fetchingRef.current || (now - lastFetchTimeRef.current < 2000)) {
+        return;
+      }
+
+      fetchingRef.current = true;
+      lastFetchTimeRef.current = now;
+
+      try {
+        const stats = await dashboardService.getRestaurantStats();
+        setNotificationCount(stats.pendingRequests || 0);
+      } catch (error) {
+        // Silently fail - don't show error for notification count
+        console.error('Failed to fetch notification count:', error);
+        setNotificationCount(0);
+      } finally {
+        fetchingRef.current = false;
+      }
+    };
+
+    fetchNotificationCount();
+    
+    // Refresh every 15 seconds
+    const interval = setInterval(() => {
+      if (user && user?.role === USER_ROLES.RESTAURANT && !fetchingRef.current) {
+        fetchNotificationCount();
+      }
+    }, 15000);
+
+    // Refresh on window focus
+    const handleFocus = () => {
+      if (user && user?.role === USER_ROLES.RESTAURANT) {
+        fetchNotificationCount();
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // Listen for manual refresh events
+    const handleRefresh = () => {
+      if (user && user?.role === USER_ROLES.RESTAURANT) {
+        fetchNotificationCount();
+      }
+    };
+    window.addEventListener('refreshNotificationCount', handleRefresh);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('refreshNotificationCount', handleRefresh);
+    };
+  }, [user, location]);
+
   const handleLogout = () => {
     logout();
     navigate('/auth');
@@ -37,17 +101,7 @@ const Navbar = () => {
     return location.pathname === path;
   };
 
-  // Get notification count (mock - replace with real data)
-  const getNotificationCount = () => {
-    if (user?.role === USER_ROLES.RESTAURANT) {
-      return 3; // Mock pending requests count
-    } else if (user?.role === USER_ROLES.NGO) {
-      return 2; // Mock active requests count
-    }
-    return 0;
-  };
-
-  const notificationCount = getNotificationCount();
+  // Notification count is now fetched dynamically via useEffect above
 
   // Safety check for isAuthenticated function
   const checkAuth = isAuthenticated ? isAuthenticated() : false;

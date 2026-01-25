@@ -49,7 +49,7 @@ const NgoDashboard = () => {
           fetchDashboardData();
         }
       }
-    }, 30000); // 30 seconds
+    }, 15000); // 15 seconds (reduced for better UX)
 
     // Refresh when window comes into focus (debounced)
     const handleFocus = () => {
