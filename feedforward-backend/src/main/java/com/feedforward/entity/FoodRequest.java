@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
        indexes = {
            @Index(name = "idx_status", columnList = "status"),
            @Index(name = "idx_listing", columnList = "listing_id"),
+           @Index(name = "idx_restaurant", columnList = "restaurant_id"),
            @Index(name = "idx_ngo", columnList = "ngo_id")
        })
 @Getter
@@ -28,8 +29,12 @@ public class FoodRequest extends BaseEntity {
     private Long requestId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "listing_id", nullable = false)
+    @JoinColumn(name = "listing_id", nullable = true)
     private FoodListing foodListing;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "restaurant_id", nullable = false)
+    private Restaurant restaurant;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ngo_id", nullable = false)
@@ -70,6 +75,16 @@ public class FoodRequest extends BaseEntity {
         this.status = RequestStatus.APPROVED;
         this.restaurantResponse = response;
         this.pickupTime = pickupTime;
+    }
+
+    public void accept(String foodDetails, String response, LocalDateTime pickupTime) {
+        this.status = RequestStatus.ACCEPTED;
+        this.restaurantResponse = response;
+        this.pickupTime = pickupTime;
+        // Store food details in notes if needed, or in restaurantResponse
+        if (foodDetails != null && !foodDetails.isEmpty()) {
+            this.notes = (this.notes != null ? this.notes + "\n\n" : "") + "Food Available: " + foodDetails;
+        }
     }
 
     public void reject(String reason) {

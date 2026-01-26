@@ -78,6 +78,7 @@ public class RequestService {
         // Create food request
         FoodRequest foodRequest = FoodRequest.builder()
                 .foodListing(listing)
+                .restaurant(listing.getRestaurant()) // Set restaurant from listing
                 .ngo(ngo)
                 .quantityRequested(request.getQuantityRequested())
                 .urgencyLevel(request.getUrgencyLevel())
