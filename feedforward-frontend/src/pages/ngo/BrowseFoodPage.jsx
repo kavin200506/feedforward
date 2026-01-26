@@ -5,6 +5,7 @@ import { Skeleton, Button, Pagination } from '../../components/common';
 import FilterSidebar from '../../components/ngo/FilterSidebar';
 import FoodCard from '../../components/ngo/FoodCard';
 import RequestFoodModal from '../../components/ngo/RequestFoodModal';
+import CustomRequestModal from '../../components/ngo/CustomRequestModal';
 import { SORT_OPTIONS } from '../../utils/constants';
 import { useDebounce } from '../../hooks';
 import { FiFilter } from 'react-icons/fi';
@@ -29,6 +30,7 @@ const BrowseFoodPage = () => {
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [selectedFood, setSelectedFood] = useState(null);
   const [showRequestModal, setShowRequestModal] = useState(false);
+  const [showCustomRequestModal, setShowCustomRequestModal] = useState(false);
   
   // Pagination state
   const [foodListingsPage, setFoodListingsPage] = useState(1);
@@ -95,7 +97,7 @@ const BrowseFoodPage = () => {
       setFoodListings(filteredListings);
       setNearbyRestaurants(response.nearbyRestaurants || []);
     } catch (error) {
-      showError('Failed to load food listings');
+      console.error('Failed to load food listings (primary endpoint):', error);
       // Fallback to old endpoint if new one fails
       try {
         // Format dietary info for fallback
@@ -125,7 +127,7 @@ const BrowseFoodPage = () => {
         setFoodListings(filteredListings);
         setNearbyRestaurants([]);
       } catch (fallbackError) {
-        showError('Failed to load food listings');
+        console.error('Failed to load food listings (fallback endpoint):', fallbackError);
       }
     } finally {
       setLoading(false);
@@ -144,10 +146,15 @@ const BrowseFoodPage = () => {
   const handleRequestSuccess = (quantityRequested) => {
     setShowRequestModal(false);
     // Add the listing ID to myRequests to filter it out
-    if (selectedFood) {
+    if (selectedFood && quantityRequested) {
       setMyRequests(prev => [...prev, selectedFood.listingId]);
-      // Remove the listing from the displayed list immediately
-      setFoodListings(prev => prev.filter(food => food.listingId !== selectedFood.listingId));
+      
+      // Optimistically update the food listing quantity
+      setFoodListings(prev => prev.map(food => 
+        food.listingId === selectedFood.listingId
+          ? { ...food, quantity: Math.max(0, food.quantity - quantityRequested), hasRequested: true }
+          : food
+      ));
     }
     setSelectedFood(null);
     // Refresh requests and food listings after a short delay
@@ -203,14 +210,19 @@ const BrowseFoodPage = () => {
               </div>
 
               {/* Mobile Filter Toggle */}
-              <Button
-                variant="outline"
-                icon={<FiFilter />}
-                className="mobile-filter-toggle"
-                onClick={() => setShowMobileFilters(!showMobileFilters)}
-              >
-                Filters
-              </Button>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <Button variant="secondary" onClick={() => setShowCustomRequestModal(true)}>
+                  Request Item
+                </Button>
+                <Button
+                  variant="outline"
+                  icon={<FiFilter />}
+                  className="mobile-filter-toggle"
+                  onClick={() => setShowMobileFilters(!showMobileFilters)}
+                >
+                  Filters
+                </Button>
+              </div>
             </div>
 
             {/* Sort Bar */}
@@ -398,6 +410,16 @@ const BrowseFoodPage = () => {
           onSuccess={handleRequestSuccess}
         />
       )}
+
+      {/* Custom Request Modal */}
+      <CustomRequestModal
+        isOpen={showCustomRequestModal}
+        onClose={() => setShowCustomRequestModal(false)}
+        onSuccess={() => {
+          fetchMyRequests();
+          // Maybe show a success toast? (handled in modal)
+        }}
+      />
     </div>
   );
 };

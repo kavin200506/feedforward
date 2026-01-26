@@ -56,6 +56,18 @@ const ngoService = {
   },
 
   /**
+   * Request custom food (reverse request)
+   */
+  requestCustomFood: async (requestData) => {
+    try {
+      const response = await api.post('/requests/custom', requestData);
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
    * Get all requests (active and completed)
    */
   getMyRequests: async () => {
@@ -124,8 +136,14 @@ const ngoService = {
    */
   notifyNearbyRestaurants: async (requestData) => {
     try {
-      const response = await api.post('/ngo/notify-nearby-restaurants', requestData);
-      return response.data;
+      // This operation involves SMS, email, and Google Places API calls, so use longer timeout
+      const response = await api.post('/ngo/notify-nearby-restaurants', requestData, {
+        timeout: 60000 // 60 seconds timeout
+      });
+      // Axios interceptor already extracts response.data, so response is the ApiResponse object
+      // ApiResponse structure: {success, message, data: NearbyRestaurantsResponse}
+      // Return the actual data object
+      return response?.data || response;
     } catch (error) {
       throw error;
     }

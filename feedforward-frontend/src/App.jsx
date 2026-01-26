@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Footer } from './components/common';
 import Navbar from './components/common/Navbar';
 import ProtectedRoute from './components/common/ProtectedRoute';
+
 import { USER_ROLES } from './utils/constants';
 
 // Pages
@@ -27,6 +28,7 @@ import ImpactPage from './pages/ImpactPage';
 
 // Route Components
 import DefaultRoute from './components/DefaultRoute';
+import FloatingChatbot from './components/chatbot/FloatingChatbot';
 
 import './App.css';
 
@@ -109,6 +111,7 @@ function App() {
           </Routes>
         </main>
         <Footer />
+        <FloatingChatbot />
       </div>
     </Router>
   );

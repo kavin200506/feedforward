@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Badge } from '../common';
+import { format } from 'date-fns';
+import { Card, Button, Badge, Modal, Input } from '../common';
+import { restaurantService } from '../../services';
 import { useNotification } from '../../context/NotificationContext';
 import { FiMapPin, FiPhone, FiClock, FiUsers } from 'react-icons/fi';
 import './RequestsPanel.css';
@@ -7,11 +9,181 @@ import './RequestsPanel.css';
 const RequestsPanel = ({ requests, onUpdate, onRequestUpdate }) => {
   const { showSuccess, showError } = useNotification();
   const [localRequests, setLocalRequests] = useState(requests);
+  const [loading, setLoading] = useState(false);
+  const [approveModal, setApproveModal] = useState({ open: false, request: null });
+  const [rejectModal, setRejectModal] = useState({ open: false, request: null });
+  const [approveForm, setApproveForm] = useState({
+    response: '',
+    pickupTime: '',
+  });
+  const [rejectReason, setRejectReason] = useState('');
   
   // Sync local state with props
   useEffect(() => {
     setLocalRequests(requests);
   }, [requests]);
+
+  const handleApproveClick = (request) => {
+    let formattedTime = '';
+    const now = new Date();
+    const pickupDate = request.pickupTime ? new Date(request.pickupTime) : null;
+    const isPickupInPast = pickupDate && pickupDate < now;
+    
+    if (pickupDate && !isPickupInPast) {
+      // Use NGO's requested time if it's in the future
+      formattedTime = format(pickupDate, "yyyy-MM-dd'T'HH:mm");
+    } else {
+      // Default to 1 hour from now if not specified OR if specified time is in the past
+      const defaultPickupTime = new Date(now.getTime() + 60 * 60 * 1000);
+      formattedTime = format(defaultPickupTime, "yyyy-MM-dd'T'HH:mm");
+    }
+    
+    setApproveForm({
+      response: `Your request has been approved. Please pick up the food at the specified time.`,
+      pickupTime: formattedTime,
+    });
+    setApproveModal({ open: true, request });
+  };
+
+  const handleRejectClick = (request) => {
+    setRejectReason('');
+    setRejectModal({ open: true, request });
+  };
+
+  const handleApproveSubmit = async (e) => {
+    e.preventDefault();
+    if (!approveForm.pickupTime) {
+      showError('Please select a pickup time');
+      return;
+    }
+
+    const requestId = approveModal.request.requestId;
+    
+    // Optimistically update the UI immediately
+    setLocalRequests(prev => prev.map(req => 
+      req.requestId === requestId 
+        ? { 
+            ...req, 
+            status: 'APPROVED',
+            response: approveForm.response,
+            pickupTime: approveForm.pickupTime,
+            approvedAt: new Date().toISOString()
+          }
+        : req
+    ));
+    
+    // Update parent component immediately
+    if (onRequestUpdate) {
+      onRequestUpdate(requestId, {
+        status: 'APPROVED',
+        response: approveForm.response,
+        pickupTime: approveForm.pickupTime,
+        approvedAt: new Date().toISOString()
+      });
+    }
+
+    setLoading(true);
+    try {
+      await restaurantService.approveRequest(
+        requestId,
+        approveForm.response,
+        approveForm.pickupTime
+      );
+      showSuccess('Request approved successfully!');
+      setApproveModal({ open: false, request: null });
+      setApproveForm({ response: '', pickupTime: '' });
+      // Refresh to get latest data from server (silent refresh)
+      if (onUpdate) {
+        setTimeout(() => onUpdate(), 500);
+      }
+    } catch (error) {
+      // Revert optimistic update on error
+      setLocalRequests(prev => prev.map(req => 
+        req.requestId === requestId 
+          ? approveModal.request // Restore original request
+          : req
+      ));
+      
+      // Revert parent component
+      if (onRequestUpdate) {
+        onRequestUpdate(requestId, approveModal.request);
+      }
+      
+      const errorMessage = error?.message || 
+                          error?.response?.data?.message || 
+                          error?.data?.message ||
+                          'Failed to approve request';
+      showError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRejectSubmit = async (e) => {
+    e.preventDefault();
+    if (!rejectReason.trim()) {
+      showError('Please provide a reason for rejection');
+      return;
+    }
+
+    const requestId = rejectModal.request.requestId;
+    
+    // Optimistically update the UI immediately
+    setLocalRequests(prev => prev.map(req => 
+      req.requestId === requestId 
+        ? { 
+            ...req, 
+            status: 'REJECTED',
+            rejectionReason: rejectReason,
+            rejectedAt: new Date().toISOString()
+          }
+        : req
+    ));
+    
+    // Update parent component immediately
+    if (onRequestUpdate) {
+      onRequestUpdate(requestId, {
+        status: 'REJECTED',
+        rejectionReason: rejectReason,
+        rejectedAt: new Date().toISOString()
+      });
+    }
+
+    setLoading(true);
+    try {
+      await restaurantService.rejectRequest(
+        requestId,
+        rejectReason
+      );
+      showSuccess('Request rejected');
+      setRejectModal({ open: false, request: null });
+      setRejectReason('');
+      // Refresh to get latest data from server (silent refresh)
+      if (onUpdate) {
+        setTimeout(() => onUpdate(), 500);
+      }
+    } catch (error) {
+      // Revert optimistic update on error
+      setLocalRequests(prev => prev.map(req => 
+        req.requestId === requestId 
+          ? rejectModal.request // Restore original request
+          : req
+      ));
+      
+      // Revert parent component
+      if (onRequestUpdate) {
+        onRequestUpdate(requestId, rejectModal.request);
+      }
+      
+      const errorMessage = error?.message || 
+                          error?.response?.data?.message || 
+                          error?.data?.message ||
+                          'Failed to reject request';
+      showError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const formatDateTime = (dateTimeString) => {
     if (!dateTimeString) return 'N/A';
@@ -68,7 +240,18 @@ const RequestsPanel = ({ requests, onUpdate, onRequestUpdate }) => {
               <div className="request-header">
                 <div>
                   <h4 className="request-ngo">{request.ngoName || 'NGO'}</h4>
-                  <p className="request-food">{request.foodName}</p>
+                  {request.notes && request.notes.startsWith('CUSTOM_REQUEST:') ? (
+                    <div className="custom-request-display">
+                      <p className="request-food" style={{ color: '#d97706', fontWeight: 'bold' }}>
+                        ⚡ {request.notes.split('|')[0].replace('CUSTOM_REQUEST:', '').trim()}
+                      </p>
+                      <small style={{ color: '#6b7280', display: 'block', marginTop: '2px' }}>
+                        Custom Need
+                      </small>
+                    </div>
+                  ) : (
+                    <p className="request-food">{request.foodName}</p>
+                  )}
                 </div>
                 <Badge color={getStatusColor(request.status)}>
                   {getStatusLabel(request.status)}
@@ -154,6 +337,142 @@ const RequestsPanel = ({ requests, onUpdate, onRequestUpdate }) => {
         )}
       </div>
 
+      {/* Approve Modal */}
+      <Modal
+        isOpen={approveModal.open}
+        onClose={() => setApproveModal({ open: false, request: null })}
+        title="Approve Request"
+        size="medium"
+      >
+        <form onSubmit={handleApproveSubmit}>
+          <div className="form-section">
+            <div className="input-wrapper">
+              <label className="input-label">
+                Response Message <span className="input-required">*</span>
+              </label>
+              <textarea
+                name="response"
+                className="input textarea"
+                value={approveForm.response}
+                onChange={(e) => setApproveForm({ ...approveForm, response: e.target.value })}
+                placeholder="Message to the NGO..."
+                rows={3}
+                required
+              />
+            </div>
+
+            {approveModal.request?.pickupTime && new Date(approveModal.request.pickupTime) > new Date() ? (
+              <div className="input-wrapper">
+                <label className="input-label">Pickup Time</label>
+                <div className="readonly-value" style={{ 
+                  padding: '0.75rem', 
+                  background: '#f9fafb', 
+                  border: '1px solid #e5e7eb', 
+                  borderRadius: '8px', 
+                  color: '#374151',
+                  fontSize: '0.95rem'
+                }}>
+                  📅 {formatDateTime(approveModal.request.pickupTime)} (Proposed by NGO)
+                </div>
+              </div>
+            ) : (
+              <>
+                {approveModal.request?.pickupTime && (
+                  <div className="warning-box" style={{ 
+                    marginBottom: '1rem', 
+                    padding: '0.75rem', 
+                    background: '#fff3cd', 
+                    border: '1px solid #ffeeba', 
+                    borderRadius: '8px', 
+                    color: '#856404', 
+                    fontSize: '0.9rem' 
+                  }}>
+                    ⚠️ The NGO's proposed pickup time ({formatDateTime(approveModal.request.pickupTime)}) has passed. Please select a new time.
+                  </div>
+                )}
+                <Input
+                  label="Pickup Time"
+                  type="datetime-local"
+                  name="pickupTime"
+                  value={approveForm.pickupTime}
+                  onChange={(e) => setApproveForm({ ...approveForm, pickupTime: e.target.value })}
+                  required
+                  min={format(new Date(), "yyyy-MM-dd'T'HH:mm")}
+                />
+              </>
+            )}
+
+            {(!approveModal.request?.pickupTime || new Date(approveModal.request.pickupTime) <= new Date()) && approveForm.pickupTime && (
+              <div className="info-box" style={{ marginTop: '1rem', padding: '0.75rem', background: '#f0f9ff', borderRadius: '8px' }}>
+                <small>Pickup scheduled for: {formatDateTime(approveForm.pickupTime)}</small>
+              </div>
+            )}
+          </div>
+
+          <div className="modal-footer" style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setApproveModal({ open: false, request: null })}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              loading={loading}
+            >
+              Approve Request
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Reject Modal */}
+      <Modal
+        isOpen={rejectModal.open}
+        onClose={() => setRejectModal({ open: false, request: null })}
+        title="Reject Request"
+        size="medium"
+      >
+        <form onSubmit={handleRejectSubmit}>
+          <div className="form-section">
+            <div className="input-wrapper">
+              <label className="input-label">
+                Reason for Rejection <span className="input-required">*</span>
+              </label>
+              <textarea
+                name="reason"
+                className="input textarea"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Please provide a reason for rejecting this request..."
+                rows={4}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="modal-footer" style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setRejectModal({ open: false, request: null })}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="danger"
+              loading={loading}
+            >
+              Reject Request
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </>
   );
 };

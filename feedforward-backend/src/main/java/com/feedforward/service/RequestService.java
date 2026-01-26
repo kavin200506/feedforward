@@ -67,17 +67,30 @@ public class RequestService {
             throw new BadRequestException("Requested quantity must be less than available quantity (" + listing.getQuantity() + ")");
         }
 
+<<<<<<< HEAD
         // Validate pickup time is in the future
         if (request.getPickupTime().isBefore(LocalDateTime.now())) {
             throw new BadRequestException("Pickup time must be in the future");
         }
 
         // Create food request and auto-approve it
+=======
+        // Validate pickup time
+        if (request.getPickupTime().isBefore(LocalDateTime.now())) {
+            throw new BadRequestException("Pickup time cannot be in the past");
+        }
+        if (request.getPickupTime().isAfter(listing.getExpiryTime())) {
+            throw new BadRequestException("Pickup time cannot be after food expiry time");
+        }
+
+        // Create food request
+>>>>>>> jay
         FoodRequest foodRequest = FoodRequest.builder()
                 .foodListing(listing)
                 .ngo(ngo)
                 .quantityRequested(request.getQuantityRequested())
                 .urgencyLevel(request.getUrgencyLevel())
+                .pickupTime(request.getPickupTime())
                 .notes(request.getNotes())
                 .pickupTime(request.getPickupTime())
                 .status(RequestStatus.APPROVED) // Auto-approve
@@ -86,6 +99,77 @@ public class RequestService {
 
         foodRequest = requestRepository.save(foodRequest);
         logger.info("Food request created and auto-approved with ID: {}", foodRequest.getRequestId());
+
+        return buildRequestResponse(foodRequest);
+    }
+
+    /**
+     * Create a custom food request (Reverse Request Flow)
+     */
+    @Transactional
+    public FoodRequestResponse createCustomRequest(com.feedforward.dto.request.CustomFoodRequestDto request) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        logger.info("Creating custom food request for user: {}", userId);
+
+        // Get NGO
+        Ngo ngo = ngoRepository.findByUser_UserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("NGO not found"));
+
+        // Find Default Restaurant (Jai's Kitchen) or First available
+        Restaurant restaurant = restaurantRepository.findAll().stream()
+                .filter(r -> r.getOrganizationName().contains("Jai's Kitchen"))
+                .findFirst()
+                .orElseGet(() -> restaurantRepository.findAll().stream().findFirst()
+                        .orElseThrow(() -> new ResourceNotFoundException("No restaurants available to receive request")));
+
+        // Find or Create Placeholder Listing
+        List<FoodListing> listings = listingRepository.findByRestaurantId(restaurant.getRestaurantId());
+        FoodListing placeholderListing = listings.stream()
+                .filter(l -> l.getFoodName().equals("Custom NGO Request"))
+                .findFirst()
+                .orElseGet(() -> {
+                    FoodListing newListing = FoodListing.builder()
+                            .restaurant(restaurant)
+                            .foodName("Custom NGO Request") // Special name to identify
+                            .quantity(99999)
+                            .unit("Servings")
+                            .preparedTime(LocalDateTime.now())
+                            .expiryTime(LocalDateTime.now().plusYears(1))
+                            .category(com.feedforward.enums.FoodCategory.OTHER)
+                            .dietaryInfo("Various")
+                            .description("Placeholder for custom NGO requests")
+                            .status(ListingStatus.AVAILABLE)
+                            .createdAt(LocalDateTime.now())
+                            .updatedAt(LocalDateTime.now())
+                            .build();
+                    return listingRepository.save(newListing);
+                });
+        
+        // Ensure placeholder has enough quantity
+        if (placeholderListing.getQuantity() < 1000) {
+            placeholderListing.setQuantity(99999);
+            listingRepository.save(placeholderListing);
+        }
+
+        // Create formatted notes with special identifier prefix
+        String specialNotes = "CUSTOM_REQUEST:" + request.getFoodName();
+        if (request.getNotes() != null && !request.getNotes().isEmpty()) {
+            specialNotes += " | " + request.getNotes();
+        }
+
+        // Create food request
+        FoodRequest foodRequest = FoodRequest.builder()
+                .foodListing(placeholderListing)
+                .ngo(ngo)
+                .quantityRequested(request.getQuantityRequested())
+                .urgencyLevel(request.getUrgencyLevel())
+                .pickupTime(request.getPickupTime())
+                .notes(specialNotes)
+                .status(RequestStatus.PENDING) // Manual approval needed for custom requests
+                .build();
+
+        foodRequest = requestRepository.save(foodRequest);
+        logger.info("Custom food request created with ID: {}", foodRequest.getRequestId());
 
         return buildRequestResponse(foodRequest);
     }
@@ -206,15 +290,36 @@ public class RequestService {
             throw new BadRequestException("Pickup time cannot be after food expiry time");
         }
 
-        // Approve request
-        request.approve(dto.getResponse(), dto.getPickupTime());
+        // Lock and retrieve listing to prevent race conditions
+        FoodListing listing = listingRepository.findByIdWithLock(request.getFoodListing().getListingId())
+                .orElseThrow(() -> new ResourceNotFoundException("Food Listing not found"));
+
+        if (!listing.isAvailable()) {
+            throw new InvalidOperationException("Food listing is no longer available");
+        }
+
+        // Check availability
+        if (listing.getQuantity() < request.getQuantityRequested()) {
+            throw new InvalidOperationException("Insufficient quantity available. Current: " + listing.getQuantity());
+        }
+
+        // Deduct quantity
+        listing.setQuantity(listing.getQuantity() - request.getQuantityRequested());
 
         // Update listing status
-        request.getFoodListing().setStatus(ListingStatus.RESERVED);
-        listingRepository.save(request.getFoodListing());
+        if (listing.getQuantity() == 0) {
+            listing.setStatus(ListingStatus.COMPLETED);
+        } else {
+            // Ensure it remains AVAILABLE if quantity > 0 (though it should already be available)
+            listing.setStatus(ListingStatus.AVAILABLE);
+        }
+        
+        listingRepository.save(listing);
 
+        // Approve request
+        request.approve(dto.getResponse(), dto.getPickupTime());
         request = requestRepository.save(request);
-        logger.info("Request {} approved", requestId);
+        logger.info("Request {} approved, listing quantity updated to {}", requestId, listing.getQuantity());
 
         return buildRequestResponse(request);
     }
@@ -300,9 +405,10 @@ public class RequestService {
         // Complete request
         request.complete();
 
-        // Update listing status
-        request.getFoodListing().setStatus(ListingStatus.COMPLETED);
-        listingRepository.save(request.getFoodListing());
+        // Note: We do NOT set listing status to COMPLETED here.
+        // Listing status is managed by quantity in approveRequest.
+        // If there is valid quantity remaining, it stays AVAILABLE for other NGOs.
+
 
         // Create donation history
         createDonationHistory(request, dto);
@@ -350,10 +456,20 @@ public class RequestService {
             throw new InvalidOperationException("Cannot cancel request with status: " + request.getStatus());
         }
 
-        // If request was approved, make listing available again
+        // If request was approved, restore quantity to listing
         if (request.getStatus() == RequestStatus.APPROVED) {
-            request.getFoodListing().setStatus(ListingStatus.AVAILABLE);
-            listingRepository.save(request.getFoodListing());
+            FoodListing listing = listingRepository.findByIdWithLock(request.getFoodListing().getListingId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Food listing not found"));
+
+            listing.setQuantity(listing.getQuantity() + request.getQuantityRequested());
+            
+            // If it was completed/expired/reserved, make it available again since we have quantity now
+            // But only if it hasn't expired in the meantime
+            if (!listing.isExpired()) {
+                listing.setStatus(ListingStatus.AVAILABLE);
+            }
+            
+            listingRepository.save(listing);
         }
 
         // Cancel request

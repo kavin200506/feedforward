@@ -115,12 +115,14 @@ const FoodCard = ({ food, onRequest }) => {
       {/* Card Footer */}
       <div className="food-card-footer">
         <Button
-          variant="primary"
+          variant={food.hasRequested ? "outline" : "primary"}
           fullWidth
-          icon={<span>🤝</span>}
-          onClick={() => onRequest(food)}
+          disabled={food.hasRequested}
+          icon={<span>{food.hasRequested ? '✅' : '🤝'}</span>}
+          onClick={() => !food.hasRequested && onRequest(food)}
+          className={food.hasRequested ? "btn-requested" : ""}
         >
-          Request This Food
+          {food.hasRequested ? 'Requested' : 'Request This Food'}
         </Button>
       </div>
     </Card>

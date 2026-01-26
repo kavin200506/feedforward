@@ -31,6 +31,7 @@ import com.feedforward.exception.BadRequestException;
 import com.feedforward.exception.ResourceNotFoundException;
 import com.feedforward.exception.UnauthorizedException;
 import com.feedforward.repository.FoodListingRepository;
+import com.feedforward.repository.FoodRequestRepository;
 import com.feedforward.repository.NgoRepository;
 import com.feedforward.repository.RestaurantRepository;
 import com.feedforward.util.SecurityUtil;
@@ -44,6 +45,7 @@ public class FoodListingService {
     private static final Logger logger = LoggerFactory.getLogger(FoodListingService.class);
 
     private final FoodListingRepository foodListingRepository;
+    private final FoodRequestRepository foodRequestRepository;
     private final RestaurantRepository restaurantRepository;
     private final NgoRepository ngoRepository;
     private final MatchingAlgorithmService matchingAlgorithmService;
@@ -239,6 +241,10 @@ public class FoodListingService {
                 request.getSortBy()
         );
 
+        // Get requested listing IDs for this NGO
+        List<Long> requestedListingIdsList = foodRequestRepository.findRequestedListingIdsByNgoId(ngo.getNgoId());
+        Set<Long> requestedListingIds = Set.copyOf(requestedListingIdsList);
+
         // Calculate match scores and distance for each listing
         return listings.stream()
                 .map(listing -> {
@@ -250,8 +256,9 @@ public class FoodListingService {
                     );
 
                     int matchScore = matchingAlgorithmService.calculateMatchScore(listing, ngo);
+                    boolean hasRequested = requestedListingIds.contains(listing.getListingId());
 
-                    return buildFoodListingResponse(listing, distance, null, matchScore);
+                    return buildFoodListingResponse(listing, distance, null, matchScore, null, hasRequested);
                 })
                 .collect(Collectors.toList());
     }
@@ -337,6 +344,8 @@ public class FoodListingService {
 
         // Calculate distance if NGO is viewing
         double distance = 0.0;
+        boolean hasRequested = false;
+        
         if (SecurityUtil.isNgo()) {
             Long userId = SecurityUtil.getCurrentUserId();
             Ngo ngo = ngoRepository.findByUser_UserId(userId)
@@ -348,9 +357,11 @@ public class FoodListingService {
                     listing.getRestaurant().getLatitude().doubleValue(),
                     listing.getRestaurant().getLongitude().doubleValue()
             );
+            
+            hasRequested = foodRequestRepository.hasNgoRequestedListing(listingId, ngo.getNgoId());
         }
 
-        return buildFoodListingResponse(listing, distance, null);
+        return buildFoodListingResponse(listing, distance, null, null, null, hasRequested);
     }
 
     /**
@@ -448,7 +459,7 @@ public class FoodListingService {
             List<SuggestedNgoResponse> suggestedNgos,
             Integer matchScore
     ) {
-        return buildFoodListingResponse(listing, distance, suggestedNgos, matchScore, null);
+        return buildFoodListingResponse(listing, distance, suggestedNgos, matchScore, null, false);
     }
 
     private FoodListingResponse buildFoodListingResponse(
@@ -457,6 +468,17 @@ public class FoodListingService {
             List<SuggestedNgoResponse> suggestedNgos,
             Integer matchScore,
             List<NearbyNgoPlaceResponse> nearbyNgoPlaces
+    ) {
+        return buildFoodListingResponse(listing, distance, suggestedNgos, matchScore, nearbyNgoPlaces, false);
+    }
+
+    private FoodListingResponse buildFoodListingResponse(
+            FoodListing listing,
+            Double distance,
+            List<SuggestedNgoResponse> suggestedNgos,
+            Integer matchScore,
+            List<NearbyNgoPlaceResponse> nearbyNgoPlaces,
+            boolean hasRequested
     ) {
         // Calculate time remaining
         String timeRemaining = calculateTimeRemaining(listing.getExpiryTime());
@@ -486,6 +508,7 @@ public class FoodListingService {
                 .matchScore(matchScore)
                 .suggestedNgos(suggestedNgos)
                 .nearbyNgoPlaces(nearbyNgoPlaces)
+                .hasRequested(hasRequested)
                 .build();
     }
 

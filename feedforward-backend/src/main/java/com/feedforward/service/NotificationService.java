@@ -6,9 +6,11 @@ import com.feedforward.dto.response.NearbyRestaurantResponse;
 import com.feedforward.dto.response.NearbyRestaurantsResponse;
 import com.feedforward.dto.response.NgoWithContactResponse;
 import com.feedforward.dto.response.RestaurantWithContactResponse;
+import com.feedforward.dto.response.SuggestedNgoResponse;
 import com.feedforward.entity.FoodListing;
 import com.feedforward.entity.Ngo;
 import com.feedforward.entity.Restaurant;
+import com.feedforward.exception.BadRequestException;
 import com.feedforward.repository.NgoRepository;
 import com.feedforward.repository.RestaurantRepository;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +31,7 @@ public class NotificationService {
     private static final Logger logger = LoggerFactory.getLogger(NotificationService.class);
 
     private final SmsService smsService;
+    private final EmailService emailService;
     private final NgoRepository ngoRepository;
     private final RestaurantRepository restaurantRepository;
     private final MatchingAlgorithmService matchingAlgorithmService;
@@ -141,6 +144,103 @@ public class NotificationService {
         }
 
         return message;
+    }
+
+    /**
+     * Build email message for food availability
+     */
+    private String buildFoodAvailableEmail(
+            String restaurantName,
+            String foodName,
+            Integer quantity,
+            String category,
+            String unit,
+            long hoursLeft,
+            String urgency,
+            String restaurantAddress,
+            String restaurantPhone
+    ) {
+        StringBuilder email = new StringBuilder();
+        email.append("Hello,\n\n");
+        email.append("We have exciting news! ").append(restaurantName).append(" has listed surplus food that matches your needs.\n\n");
+        
+        email.append("📦 Food Details:\n");
+        email.append("   • Food Name: ").append(foodName).append("\n");
+        email.append("   • Quantity: ").append(quantity).append(" ").append(unit != null ? unit : "servings").append("\n");
+        email.append("   • Category: ").append(category).append("\n");
+        email.append("   • Time Remaining: ").append(hoursLeft).append(" hours\n");
+        
+        if (!urgency.isEmpty()) {
+            email.append("   • Urgency: ").append(urgency).append("\n");
+        }
+        
+        email.append("\n");
+        email.append("📍 Restaurant Information:\n");
+        email.append("   • Name: ").append(restaurantName).append("\n");
+        if (restaurantAddress != null && !restaurantAddress.isEmpty()) {
+            email.append("   • Address: ").append(restaurantAddress).append("\n");
+        }
+        if (restaurantPhone != null && !restaurantPhone.isEmpty()) {
+            email.append("   • Phone: ").append(restaurantPhone).append("\n");
+        }
+        
+        email.append("\n");
+        email.append("🚀 Next Steps:\n");
+        email.append("1. Login to ").append(appName).append(" at ").append(baseUrl).append("\n");
+        email.append("2. Browse available food listings\n");
+        email.append("3. Request the food you need\n");
+        email.append("4. Coordinate pickup with the restaurant\n\n");
+        
+        email.append("Thank you for being part of the FeedForward community!\n\n");
+        email.append("Best regards,\n");
+        email.append("The FeedForward Team");
+        
+        return email.toString();
+    }
+
+    /**
+     * Build email message for NGO food request to restaurants
+     */
+    private String buildFoodNeededEmail(
+            String ngoName,
+            Integer beneficiariesCount,
+            int quantityNeeded,
+            String foodPreference,
+            String ngoAddress,
+            String ngoPhone
+    ) {
+        StringBuilder email = new StringBuilder();
+        email.append("Hello,\n\n");
+        email.append("We have an urgent food request! ").append(ngoName).append(" needs your help to feed ").append(beneficiariesCount).append(" beneficiaries.\n\n");
+        
+        email.append("🍽️ Food Request Details:\n");
+        email.append("   • Quantity Needed: ").append(quantityNeeded).append(" servings\n");
+        email.append("   • Food Preference: ").append(foodPreference).append("\n");
+        email.append("   • Beneficiaries: ").append(beneficiariesCount).append(" people\n");
+        
+        email.append("\n");
+        email.append("📍 NGO Information:\n");
+        email.append("   • Name: ").append(ngoName).append("\n");
+        if (ngoAddress != null && !ngoAddress.isEmpty()) {
+            email.append("   • Address: ").append(ngoAddress).append("\n");
+        }
+        if (ngoPhone != null && !ngoPhone.isEmpty()) {
+            email.append("   • Phone: ").append(ngoPhone).append("\n");
+        }
+        
+        email.append("\n");
+        email.append("🚀 How You Can Help:\n");
+        email.append("1. Login to ").append(appName).append(" at ").append(baseUrl).append("\n");
+        email.append("2. Add a food listing with the requested quantity\n");
+        email.append("3. The NGO will be automatically notified\n");
+        email.append("4. Coordinate pickup with the NGO\n\n");
+        
+        email.append("Your contribution makes a huge difference in fighting food waste and helping those in need!\n\n");
+        email.append("Thank you for being part of the FeedForward community!\n\n");
+        email.append("Best regards,\n");
+        email.append("The FeedForward Team");
+        
+        return email.toString();
     }
 
     /**
@@ -507,6 +607,7 @@ public class NotificationService {
         logger.info("📱 Phone numbers to send SMS: {}", phoneNumbers);
 
         // Send SMS in bulk
+        int smsCount = 0;
         if (!phoneNumbers.isEmpty()) {
             logger.info("📱 Attempting to send SMS to {} phone numbers", phoneNumbers.size());
             boolean smsSent = smsService.sendSms(phoneNumbers, smsMessage);
@@ -514,9 +615,7 @@ public class NotificationService {
                 // Note: smsSent=true means at least one SMS was sent successfully
                 // Some may have failed (e.g., unverified numbers on trial account)
                 logger.info("✅ SMS sent successfully to at least one NGO (some may have failed if unverified)");
-                // Return the count of phone numbers we attempted to send to
-                // The actual success count is logged by SmsService
-                return phoneNumbers.size();
+                smsCount = phoneNumbers.size();
             } else {
                 logger.error("❌ Failed to send SMS to all {} NGOs", phoneNumbers.size());
                 logger.error("💡 Check logs above for details. If using Twilio Trial account, verify numbers at:");
@@ -531,7 +630,136 @@ public class NotificationService {
             });
         }
 
-        return 0;
+        // Send Emails to registered NGOs
+        List<String> emailAddresses = ngos.stream()
+                .map(NgoWithContactResponse::getEmail)
+                .filter(email -> email != null && !email.isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
+
+        List<String> ngoNames = ngos.stream()
+                .map(NgoWithContactResponse::getOrganizationName)
+                .filter(name -> name != null && !name.isEmpty())
+                .collect(Collectors.toList());
+
+        int emailCount = 0;
+        if (!emailAddresses.isEmpty()) {
+            // Build email subject and message
+            String emailSubject = String.format("🍽️ Food Available: %s from %s", 
+                    foodListing.getFoodName(), restaurant.getOrganizationName());
+            
+            String emailMessage = buildFoodAvailableEmail(
+                    restaurant.getOrganizationName(),
+                    foodListing.getFoodName(),
+                    foodListing.getQuantity(),
+                    foodListing.getCategory().getDisplayName(),
+                    foodListing.getUnit(),
+                    hoursUntilExpiry,
+                    urgency,
+                    restaurant.getAddress(),
+                    restaurant.getUser() != null ? restaurant.getUser().getPhone() : null
+            );
+
+            logger.info("📧 Attempting to send emails to {} NGOs", emailAddresses.size());
+            logger.info("📧 Email addresses: {}", emailAddresses);
+            emailCount = emailService.sendBulkEmails(emailAddresses, emailSubject, emailMessage, ngoNames);
+            if (emailCount > 0) {
+                logger.info("✅ Email sent successfully to {} NGOs (top 10)", emailCount);
+            } else {
+                logger.error("❌ Email sending failed for all {} NGOs. Check EmailJS configuration and logs above.", emailAddresses.size());
+                logger.error("💡 Common issues:");
+                logger.error("   1. EmailJS service_id or template_id not configured");
+                logger.error("   2. Invalid email addresses");
+                logger.error("   3. EmailJS API errors (check logs above for details)");
+            }
+        } else {
+            logger.warn("⚠️ No valid email addresses found in {} NGOs", ngos.size());
+            logger.warn("📧 NGO email addresses: {}", ngos.stream()
+                    .map(ngo -> ngo.getOrganizationName() + " -> " + ngo.getEmail())
+                    .collect(Collectors.joining(", ")));
+        }
+
+        // Return total notification count (SMS + Email)
+        return Math.max(smsCount, emailCount);
+    }
+
+    /**
+     * Notify next batch of NGOs (Escalation)
+     */
+    public int notifyNextBatch(FoodListing foodListing) {
+        try {
+            int batchSize = 5;
+            int batchNumber = foodListing.getBatchNumber();
+            int offset = (batchNumber - 1) * batchSize;
+            
+            // We want the NEXT batch, so offset logic:
+            // Batch 1 (initial): offset 0 (0-4 notifications sent initially)
+            // Batch 2 (escalation 1): offset 5 (5-9)
+            // But wait, the initial notification sent to TOP 10 (batch 1+2 effectively?).
+            // Let's refine based on user request: "Batch 2 -> NGOs 6-10".
+            // If TOP_N was 10, then batch 1 was actually 1-10?
+            // The prompt says: "First batch (NGOs 1–5) has already been notified."
+            // But my TOP_N constant is 10. Let's adjust logic to respect batch size of 5.
+            
+            // Re-calculating offset for escalation:
+            // Initial (Batch 1): 0-4
+            // Escalation (Batch 2): 5-9
+            // Escalation (Batch 3): 10-14
+            
+            // If current batch is 1 (meaning we are escalating FROM 1 TO 2), we want 5-9.
+            // If current batch is 2 (escalating FROM 2 TO 3), we want 10-14.
+            
+            // So for "escalating to batch N+1", we fetch with offset = N * 5.
+            // Example:
+            // Current batch = 1. We want batch 2 (index 5-9). Offset = 1 * 5 = 5. Limit = 5.
+            // Current batch = 2. We want batch 3 (index 10-14). Offset = 2 * 5 = 10. Limit = 5.
+            
+            int targetOffset = batchNumber * batchSize;
+            
+            logger.info("🚀 Escalating notifications for listing {} to Batch {} (Offset: {}, Limit: {})", 
+                    foodListing.getListingId(), batchNumber + 1, targetOffset, batchSize);
+
+            // Find matching NGOs with pagination
+            List<SuggestedNgoResponse> nextBatchSuggestions = matchingAlgorithmService.findMatchingNgos(
+                    foodListing, batchSize, targetOffset
+            );
+
+            if (nextBatchSuggestions.isEmpty()) {
+                logger.info("No more NGOs found for escalation batch {}", batchNumber + 1);
+                return 0;
+            }
+
+            // Convert suggestions to NGO entities with contact info
+            // Note: matchingAlgorithmService returns IDs, we need to fetch entities or contact info
+            // For efficiency, let's fetch by IDs
+            List<Long> ngoIds = nextBatchSuggestions.stream()
+                    .map(SuggestedNgoResponse::getNgoId)
+                    .collect(Collectors.toList());
+            
+            List<Ngo> ngos = ngoRepository.findAllById(ngoIds);
+            
+            // Map to NgoWithContactResponse for notification method
+            List<NgoWithContactResponse> ngoContacts = ngos.stream()
+                .map(ngo -> {
+                    // Calculate distance again (or pass it from suggestion)
+                    double distance = matchingAlgorithmService.calculateDistance(
+                            foodListing.getRestaurant().getLatitude().doubleValue(),
+                            foodListing.getRestaurant().getLongitude().doubleValue(),
+                            ngo.getLatitude().doubleValue(),
+                            ngo.getLongitude().doubleValue()
+                    );
+                    return buildNgoWithContact(ngo, distance);
+                })
+                .filter(res -> res != null)
+                .collect(Collectors.toList());
+
+            // Notify them using existing method
+            return notifyRegisteredNgos(ngoContacts, foodListing, foodListing.getRestaurant());
+
+        } catch (Exception e) {
+            logger.error("Error in notifyNextBatch: {}", e.getMessage(), e);
+            return 0;
+        }
     }
 
     /**
@@ -585,6 +813,13 @@ public class NotificationService {
             int quantityNeeded,
             String foodPreference
     ) {
+        // Validate NGO has coordinates
+        if (ngo.getLatitude() == null || ngo.getLongitude() == null) {
+            logger.error("❌ NGO {} does not have coordinates (lat: {}, lng: {})", 
+                    ngo.getOrganizationName(), ngo.getLatitude(), ngo.getLongitude());
+            throw new BadRequestException("NGO location is not set. Please update your profile with location coordinates.");
+        }
+
         // Find all nearby registered restaurants
         List<Restaurant> nearbyRestaurants = findNearbyRestaurants(
                 ngo.getLatitude().doubleValue(),
@@ -655,7 +890,7 @@ public class NotificationService {
     }
 
     /**
-     * Send SMS to registered restaurants (top 10)
+     * Send SMS and Email to registered restaurants (top 10)
      */
     private int notifyRegisteredRestaurants(
             List<RestaurantWithContactResponse> restaurants,
@@ -666,7 +901,7 @@ public class NotificationService {
         if (restaurants.isEmpty()) return 0;
 
         // Build SMS message
-        String message = String.format(
+        String smsMessage = String.format(
                 "🤝 %s needs %d servings of %s food. Help feed %d beneficiaries. Login to %s to donate.",
                 ngo.getOrganizationName(),
                 quantityNeeded,
@@ -675,23 +910,82 @@ public class NotificationService {
                 appName
         );
 
-        // Collect phone numbers from top 10
+        // Collect valid phone numbers from top 10
+        logger.info("📱 Collecting phone numbers from {} restaurants", restaurants.size());
+        
         List<String> phoneNumbers = restaurants.stream()
-                .map(RestaurantWithContactResponse::getPhone)
+                .map(restaurant -> {
+                    String phone = restaurant.getPhone();
+                    boolean isValid = phone != null && !phone.isEmpty() && smsService.isValidIndianMobile(phone);
+                    logger.info("📱 Restaurant: '{}', Phone: '{}', Valid: {}", 
+                            restaurant.getOrganizationName(), phone, isValid);
+                    return phone;
+                })
                 .filter(phone -> phone != null && !phone.isEmpty())
                 .filter(smsService::isValidIndianMobile)
                 .collect(Collectors.toList());
 
-        // Send SMS
+        logger.info("📱 Valid phone numbers collected: {} out of {} restaurants", phoneNumbers.size(), restaurants.size());
+
+        // Send SMS in bulk
+        int smsCount = 0;
         if (!phoneNumbers.isEmpty()) {
-            boolean sent = smsService.sendSms(phoneNumbers, message);
-            if (sent) {
-                logger.info("SMS sent to {} restaurants (top 10)", phoneNumbers.size());
-                return phoneNumbers.size();
+            logger.info("📱 Attempting to send SMS to {} restaurants", phoneNumbers.size());
+            boolean smsSent = smsService.sendSms(phoneNumbers, smsMessage);
+            if (smsSent) {
+                logger.info("✅ SMS sent successfully to {} restaurants (top 10)", phoneNumbers.size());
+                smsCount = phoneNumbers.size();
+            } else {
+                logger.error("❌ Failed to send SMS to restaurants");
             }
+        } else {
+            logger.warn("⚠️ No valid phone numbers found in {} restaurants", restaurants.size());
         }
 
-        return 0;
+        // Send Emails to registered restaurants
+        List<String> emailAddresses = restaurants.stream()
+                .map(RestaurantWithContactResponse::getEmail)
+                .filter(email -> email != null && !email.isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
+
+        List<String> restaurantNames = restaurants.stream()
+                .map(RestaurantWithContactResponse::getOrganizationName)
+                .filter(name -> name != null && !name.isEmpty())
+                .collect(Collectors.toList());
+
+        int emailCount = 0;
+        if (!emailAddresses.isEmpty()) {
+            // Build email subject and message
+            String emailSubject = String.format("🤝 Food Needed: %s needs %d servings", 
+                    ngo.getOrganizationName(), quantityNeeded);
+            
+            String emailMessage = buildFoodNeededEmail(
+                    ngo.getOrganizationName(),
+                    ngo.getBeneficiariesCount(),
+                    quantityNeeded,
+                    foodPreference,
+                    ngo.getAddress(),
+                    ngo.getUser() != null ? ngo.getUser().getPhone() : null
+            );
+
+            logger.info("📧 Attempting to send emails to {} restaurants", emailAddresses.size());
+            logger.info("📧 Email addresses: {}", emailAddresses);
+            emailCount = emailService.sendBulkEmails(emailAddresses, emailSubject, emailMessage, restaurantNames);
+            if (emailCount > 0) {
+                logger.info("✅ Email sent successfully to {} restaurants (top 10)", emailCount);
+            } else {
+                logger.error("❌ Email sending failed for all {} restaurants. Check email configuration and logs above.", emailAddresses.size());
+            }
+        } else {
+            logger.warn("⚠️ No valid email addresses found in {} restaurants", restaurants.size());
+            logger.warn("📧 Restaurant email addresses: {}", restaurants.stream()
+                    .map(r -> r.getOrganizationName() + " -> " + r.getEmail())
+                    .collect(Collectors.joining(", ")));
+        }
+
+        // Return the maximum of SMS and email counts (at least one notification method succeeded)
+        return Math.max(smsCount, emailCount);
     }
 
     /**

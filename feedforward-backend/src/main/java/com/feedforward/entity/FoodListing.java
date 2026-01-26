@@ -40,7 +40,7 @@ public class FoodListing extends BaseEntity {
 
     @NotNull(message = "Category is required")
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 50)
+    @Column(nullable = false, length = 100)
     private FoodCategory category;
 
     @NotNull(message = "Quantity is required")
@@ -80,6 +80,13 @@ public class FoodListing extends BaseEntity {
     @Builder.Default
     private List<FoodRequest> requests = new ArrayList<>();
 
+    @Column(name = "batch_number")
+    @Builder.Default
+    private Integer batchNumber = 1;
+
+    @Column(name = "last_escalation_time")
+    private LocalDateTime lastEscalationTime;
+
     // Helper methods
     @PrePersist
     @PreUpdate
@@ -96,6 +103,10 @@ public class FoodListing extends BaseEntity {
             } else {
                 this.urgencyLevel = UrgencyLevel.LOW;
             }
+        }
+        
+        if (this.batchNumber == null) {
+            this.batchNumber = 1;
         }
     }
 

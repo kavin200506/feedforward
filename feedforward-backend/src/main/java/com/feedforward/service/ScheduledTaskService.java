@@ -23,6 +23,7 @@ public class ScheduledTaskService {
 
     private final FoodListingRepository listingRepository;
     private final FoodRequestRepository requestRepository;
+    private final NotificationService notificationService;
 
     /**
      * Mark expired food listings as EXPIRED
@@ -107,6 +108,99 @@ public class ScheduledTaskService {
         // - Pending requests reminder
 
         logger.info("Daily digest notifications queued");
+    }
+
+    /**
+     * Check and escalate notifications for pending listings
+     * Runs every minute to check if escalation timeout has passed
+     */
+    @Scheduled(cron = "0 */1 * * * *") // Every minute
+    @Transactional
+    public void checkAndEscalateNotifications() {
+        logger.info("Running scheduled task: Check and escalate notifications");
+
+        List<FoodListing> availableListings = listingRepository.findAllAvailableListings();
+        LocalDateTime now = LocalDateTime.now();
+        int escalationCount = 0;
+
+        for (FoodListing listing : availableListings) {
+            // Skip if no last escalation time (legacy data or just created?)
+            // If null, we should initialize it.
+            if (listing.getLastEscalationTime() == null) {
+                listing.setLastEscalationTime(now);
+                listing.setBatchNumber(1);
+                listingRepository.save(listing);
+                continue;
+            }
+
+            // Determine timeout based on urgency
+            long timeoutMinutes;
+            switch (listing.getUrgencyLevel()) {
+                case CRITICAL:
+                    timeoutMinutes = 5;
+                    break;
+                case HIGH:
+                    timeoutMinutes = 10;
+                    break;
+                case MEDIUM:
+                    timeoutMinutes = 20;
+                    break;
+                case LOW:
+                    timeoutMinutes = 30;
+                    break;
+                default: // Should happen if urgency is null, fallback
+                    timeoutMinutes = 30;
+            }
+
+            // Check if timeout has passed
+            long minutesSinceLastEscalation = java.time.Duration.between(
+                    listing.getLastEscalationTime(), now).toMinutes();
+
+            if (minutesSinceLastEscalation >= timeoutMinutes) {
+                logger.info("Escalating listing {} (Urgency: {}, Batch: {} -> {}, Elapsed: {}m)", 
+                        listing.getListingId(), listing.getUrgencyLevel(), 
+                        listing.getBatchNumber(), listing.getBatchNumber() + 1, 
+                        minutesSinceLastEscalation);
+
+                // Notify next batch
+                int notifiedCount = notificationService.notifyNextBatch(listing);
+
+                if (notifiedCount > 0) {
+                    // Update state ONLY if we found people to notify
+                    // If 0, it means we ran out of NGOs, so maybe stop escalating?
+                    // But we should increment batch to avoid retrying the same empty batch forever?
+                    // Actually notifyNextBatch returns 0 if empty.
+                    // If we update batch number, we move to next. If we don't, we retry.
+                    // If we retry empty batch, we waste cycles. 
+                    // Let's increment anyway to look for next batch (maybe sparse data). 
+                    // Or stop? Implementation plan says "Update batch index".
+                    
+                    listing.setBatchNumber(listing.getBatchNumber() + 1);
+                    listing.setLastEscalationTime(now);
+                    listingRepository.save(listing);
+                    escalationCount++;
+                } else {
+                    // No more NGOs found. We can stop escalating for this listing or keep checking.
+                    // To prevent log spam every minute, let's update the time at least?
+                    // OR we mark it as "ESCALATION_EXHAUSTED"?
+                    // For now, let's just update the time so we don't check again immediately for another timeout period.
+                    // But better implementation: existing logic assumes sequential.
+                    // If 0 found, maybe we should just increment to check next 5? 
+                    // Or if findMatchingNgos returns empty, are we done?
+                    // The service logs "No more NGOs found", so effectively done.
+                    // Let's increment batch number so we don't retry the same index.
+                    listing.setBatchNumber(listing.getBatchNumber() + 1);
+                    listing.setLastEscalationTime(now); 
+                    listingRepository.save(listing);
+                    logger.info("Escalation yielded no new NGOs for listing {}. Moved to batch {}.", 
+                            listing.getListingId(), listing.getBatchNumber());
+                }
+            }
+        }
+
+        if (escalationCount > 0) {
+            logger.info("Escalated {} listings to next batch of NGOs", escalationCount);
+        }
     }
 
     /**

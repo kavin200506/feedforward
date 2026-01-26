@@ -59,7 +59,7 @@ CREATE TABLE food_listings (
     listing_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     restaurant_id BIGINT NOT NULL,
     food_name VARCHAR(255) NOT NULL,
-    category VARCHAR(50) NOT NULL,
+    category VARCHAR(100) NOT NULL,
     quantity INT NOT NULL,
     unit VARCHAR(20) NOT NULL,
     prepared_time TIMESTAMP NOT NULL,

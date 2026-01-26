@@ -46,6 +46,23 @@ public class RequestController {
     }
 
     /**
+     * Create custom food request (NGO only)
+     * POST /api/requests/custom
+     */
+    @PostMapping("/custom")
+    public ResponseEntity<ApiResponse<FoodRequestResponse>> createCustomRequest(
+            @Valid @RequestBody com.feedforward.dto.request.CustomFoodRequestDto request
+    ) {
+        logger.info("Create custom food request for: {}", request.getFoodName());
+
+        FoodRequestResponse response = requestService.createCustomRequest(request);
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Custom request created successfully", response));
+    }
+
+    /**
      * Get all my requests (NGO)
      * GET /api/requests/ngo/my-requests
      */
