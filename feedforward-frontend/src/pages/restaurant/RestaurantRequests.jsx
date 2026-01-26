@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { format } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { restaurantService, dashboardService } from '../../services';
@@ -92,8 +93,20 @@ const RestaurantRequests = () => {
   };
 
   const handleApproveClick = (request) => {
-    const defaultPickupTime = new Date(Date.now() + 60 * 60 * 1000);
-    const formattedTime = defaultPickupTime.toISOString().slice(0, 16);
+    let formattedTime = '';
+    const now = new Date();
+    const pickupDate = request.pickupTime ? new Date(request.pickupTime) : null;
+    const isPickupInPast = pickupDate && pickupDate < now;
+    
+    if (pickupDate && !isPickupInPast) {
+      // Use NGO's requested time if it's in the future
+      // Use date-fns format to preserve the exact time string without UTC conversion
+      formattedTime = format(pickupDate, "yyyy-MM-dd'T'HH:mm");
+    } else {
+      // Default to 1 hour from now if not specified OR if specified time is in the past
+      const defaultPickupTime = new Date(now.getTime() + 60 * 60 * 1000);
+      formattedTime = format(defaultPickupTime, "yyyy-MM-dd'T'HH:mm");
+    }
     
     setApproveForm({
       response: `Your request has been approved. Please pick up the food at the specified time.`,
@@ -317,17 +330,50 @@ const RestaurantRequests = () => {
                 />
               </div>
 
-              <Input
-                label="Pickup Time"
-                type="datetime-local"
-                name="pickupTime"
-                value={approveForm.pickupTime}
-                onChange={(e) => setApproveForm({ ...approveForm, pickupTime: e.target.value })}
-                required
-                min={new Date().toISOString().slice(0, 16)}
-              />
+              {approveModal.request?.pickupTime && new Date(approveModal.request.pickupTime) > new Date() ? (
+                <div className="input-wrapper">
+                  <label className="input-label">Pickup Time</label>
+                  <div className="readonly-value" style={{ 
+                    padding: '0.75rem', 
+                    background: '#f9fafb', 
+                    border: '1px solid #e5e7eb', 
+                    borderRadius: '8px', 
+                    color: '#374151',
+                    fontSize: '0.95rem'
+                  }}>
+                    📅 {formatDateTime(approveModal.request.pickupTime)} (Proposed by NGO)
+                  </div>
+                  {/* Hidden input to ensure state is present if needed for submission logic, though state is already set */}
+                </div>
+              ) : (
+                <>
+                  {approveModal.request?.pickupTime && (
+                    <div className="warning-box" style={{ 
+                      marginBottom: '1rem', 
+                      padding: '0.75rem', 
+                      background: '#fff3cd', 
+                      border: '1px solid #ffeeba', 
+                      borderRadius: '8px', 
+                      color: '#856404', 
+                      fontSize: '0.9rem' 
+                    }}>
+                      ⚠️ The NGO's proposed pickup time ({formatDateTime(approveModal.request.pickupTime)}) has passed. Please select a new time.
+                    </div>
+                  )}
+                  <Input
+                    label="Pickup Time"
+                    type="datetime-local"
+                    name="pickupTime"
+                    value={approveForm.pickupTime}
+                    onChange={(e) => setApproveForm({ ...approveForm, pickupTime: e.target.value })}
+                    required
+                    min={format(new Date(), "yyyy-MM-dd'T'HH:mm")}
+                  />
+                </>
+              )}
 
-              {approveForm.pickupTime && (
+              {/* Show formatted time note only if manually selecting (input visible) */}
+              {(!approveModal.request?.pickupTime || new Date(approveModal.request.pickupTime) <= new Date()) && approveForm.pickupTime && (
                 <div className="info-box" style={{ marginTop: '1rem', padding: '0.75rem', background: '#f0f9ff', borderRadius: '8px' }}>
                   <small>Pickup scheduled for: {formatDateTime(approveForm.pickupTime)}</small>
                 </div>
